@@ -2,6 +2,9 @@
 /* eslint-disable no-unused-vars */
 /* global getParameterByName forge */
 /* global isElectron cookieSet cookieGet cookieRemove async */
+// Provider modules expose a shared static API consumed by MediaService:
+// search/show_playlist/get_playlist/lyric/bootstrap_track/parse_url/login.
+// Track ids must keep the `ne*` prefixes because routing is prefix-based.
 class netease {
   static _create_secret_key(size) {
     const result = [];
@@ -214,8 +217,8 @@ class netease {
             }
           );
         } else {
-          // 【核心修复】：补回丢失的 else 分支！
-          // 防止已有 Cookie 时代码卡死，保证后续请求正常发出！
+          // Existing cookies are valid; still invoke the continuation so the
+          // request chain never stalls.
           callback(null);
         }
       }
@@ -360,6 +363,9 @@ class netease {
   }
 
   static bootstrap_track(track, success, failure) {
+    // Player bootstrapping is provider-specific: convert a Listen1 track into a
+    // short-lived playable media URL, or call failure to let MediaService try
+    // cross-provider fallback.
     const sound = {};
     const target_url = `https://interface3.music.163.com/eapi/song/enhance/player/url`;
     let song_id = track.id;
@@ -801,7 +807,7 @@ class netease {
         value: 'pc',
         expirationDate: expire,
       },
-      (cookie) => { }
+      (cookie) => {}
     );
     return {
       success: (fn) => {
@@ -963,7 +969,7 @@ class netease {
         url: 'https://music.163.com',
         name: 'MUSIC_U',
       },
-      (cookie) => { }
+      (cookie) => {}
     );
   }
 }

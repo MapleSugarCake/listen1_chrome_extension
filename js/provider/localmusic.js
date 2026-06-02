@@ -11,6 +11,8 @@ const defaultLocalMusicPlaylist = {
   },
 };
 
+// Local music uses the same provider contract as remote platforms, but stores
+// tracks in localStorage and points `sound_url` at the selected local file.
 function cloneDefaultLocalMusicPlaylist() {
   return JSON.parse(JSON.stringify(defaultLocalMusicPlaylist));
 }

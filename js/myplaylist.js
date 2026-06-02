@@ -22,6 +22,9 @@ const myplaylistFactory = () => {
     }
     return key;
   }
+  // My/favorite playlists are stored as an ordered id list plus one storage
+  // record per playlist. This keeps reordering cheap and avoids rewriting every
+  // playlist when only one entry changes.
   function show_myplaylist(playlist_type) {
     return {
       success(fn) {
@@ -122,7 +125,8 @@ const myplaylistFactory = () => {
     } else if (playlist_type === 'favorite') {
       playlist_id = playlist.info.id;
       playlist.is_fav = 1;
-      // remove all tracks info, cause favorite playlist always load latest
+      // Favorite playlists are refreshed from their source provider, so avoid
+      // persisting stale track snapshots.
       delete playlist.tracks;
     }
 

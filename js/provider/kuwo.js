@@ -2,6 +2,9 @@
 /* eslint-disable no-unused-vars */
 /* global async getParameterByName isElectron */
 
+// Kuwo's current web API requires a per-session Secret header. The copied
+// website hash function below is isolated so the provider code can call it
+// without spreading minified/obfuscated logic through request paths.
 function h(t, e) {
   // NOTICE: this function is from kuwo website, so eslint is skipped.
   /* eslint-disable */
@@ -261,6 +264,8 @@ class kuwo {
   static kw_cookie_get(url, callback) {
     const name = 'Hm_Iuvt_cdb524f42f23cer9b268564v7y735ewrq2324';
     this.kw_get_token((token) => {
+      // All Kuwo API calls that require the token pass through this helper so
+      // token refresh and retry behavior stays consistent.
       axios
         .get(url, {
           headers: {

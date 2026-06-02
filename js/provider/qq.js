@@ -1,6 +1,8 @@
 /* eslint-disable no-use-before-define */
 /* global getParameterByName cookieGet cookieRemove */
 // eslint-disable-next-line no-unused-vars
+// Provider modules expose static methods so MediaService can route requests by
+// item-id prefix without constructing provider instances.
 class qq {
   static htmlDecode(value) {
     const parser = new DOMParser();
@@ -101,6 +103,8 @@ class qq {
   }
 
   static qq_convert_song(song) {
+    // Normalize QQ's API shape to the common Listen1 track contract used by the
+    // player, playlists, search results, and source failover.
     const d = {
       id: `qqtrack_${song.songmid}`,
       title: this.htmlDecode(song.songname),

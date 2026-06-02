@@ -7,6 +7,9 @@
       : 'background';
 
   const myPlayer = getPlayer(mode);
+  // l1Player is the UI-facing command adapter. It always talks to the active
+  // front/background player asynchronously, while `status` is kept warm by
+  // player events below for quick template reads.
   const l1Player = {
     status: {
       muted: myPlayer.muted,
@@ -133,7 +136,8 @@
     connectPlayer() {
       getPlayerAsync(mode, (player) => {
         if (!player.playing) {
-          // load local storage settings
+          // Restore queue and last selected track only when the player is idle;
+          // a running background player already owns the authoritative state.
           if (!player.playlist.length) {
             const localCurrentPlaying =
               localStorage.getObject('current-playing');
@@ -158,6 +162,8 @@
     },
   };
 
+  // Keep small click directives next to the player facade so templates do not
+  // need to know whether playback is handled by the front or background player.
   l1Player.injectDirectives = (ngApp) => {
     ngApp.directive('playFromPlaylist', () => ({
       restrict: 'EA',

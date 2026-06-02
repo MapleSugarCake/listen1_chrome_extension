@@ -53,6 +53,8 @@ const main = () => {
   app.run([
     '$q',
     ($q) => {
+      // Wrap axios promises with Angular's $q so async provider responses still
+      // trigger digest updates in older controllers.
       axios.Axios.prototype.request_original = axios.Axios.prototype.request;
       axios.Axios.prototype.request = function new_req(config) {
         return $q.when(this.request_original(config));
@@ -297,6 +299,8 @@ const main = () => {
         sortable: '=',
       },
       link(scope, element, attrs) {
+        // Drag payloads use custom MIME types so playlist-to-playlist moves and
+        // song-to-playlist copies can share one directive without ambiguity.
         // https://stackoverflow.com/questions/34200023/drag-drop-set-custom-html-as-drag-image
         element.on('dragstart', (ev) => {
           if (scope.dragobject === undefined) {
@@ -441,6 +445,8 @@ const main = () => {
       }
 
       function onMyCommitProgress(progress) {
+        // Progress is normalized to 0..1. Playback consumes it directly, while
+        // volume is persisted as a user-facing 0..100 percentage.
         if (mode === 'play') {
           l1Player.seek(progress);
         }

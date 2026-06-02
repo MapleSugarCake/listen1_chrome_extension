@@ -13,6 +13,8 @@
       this._random_playlist = [];
       this.index = -1;
       this._loop_mode = 0;
+      // Media URLs are cached by Listen1 track id after provider bootstrap.
+      // They are intentionally not persisted because provider URLs can expire.
       this._media_uri_list = {};
       this.playedFrom = 0;
       this.mode = 'background';
@@ -208,6 +210,8 @@
     }
 
     retrieveMediaUrl(index, playNow) {
+      // Providers may return a direct URL from the original source or from a
+      // mirror provider selected by MediaService.bootstrapTrack.
       const msg = {
         type: 'BG_PLAYER:RETRIEVE_URL',
         data: {
@@ -606,6 +610,8 @@
     }
 
     async sendPlaylistEvent() {
+      // Howl instances cannot be cloned or sent across extension/Electron
+      // message boundaries, so strip them from every outbound playlist event.
       playerSendMessage(this.mode, {
         type: 'BG_PLAYER:PLAYLIST',
         data: this.playlist.map((audio) => ({ ...audio, howl: undefined })),

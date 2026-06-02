@@ -29,6 +29,8 @@ function useModernTheme() {
   return defaultTheme === 'white2' || defaultTheme === 'black2';
 }
 
+// Playlist navigation wraps around in every play mode; keep the wrap logic in
+// one place so staged playlist rendering and playback indexes stay consistent.
 function getSafeIndex(index, length) {
   if (index < 0) {
     const r = index % length;
@@ -86,6 +88,8 @@ angular.module('listenone').controller('PlayController', [
       if ($scope.playlist === undefined) {
         return;
       }
+      // Modern themes render a small window around the current track instead of
+      // the full queue, so large playlists do not cause unnecessary DOM churn.
       const STAGED_LENGTH = 5;
       let i = $scope.currentIndex - 2;
       $scope.staged_playlist = [];
@@ -384,6 +388,9 @@ angular.module('listenone').controller('PlayController', [
     });
 
     function parseLyric(lyric, tlyric) {
+      // Merge original and translated LRC lines into one sorted timeline.
+      // Translation lines keep their flag so the view/floating window can
+      // decide whether to render them.
       const lines = lyric.split('\n');
       let result = [];
       const timeResult = [];
@@ -495,6 +502,9 @@ angular.module('listenone').controller('PlayController', [
     }
 
     addPlayerListener(mode, (msg, sender, sendResponse) => {
+      // Player events are the single source of truth for the controller state.
+      // UI actions call l1Player, and this listener reflects the resulting
+      // player state back into Angular scope.
       if (
         typeof msg.type === 'string' &&
         msg.type.split(':')[0] === 'BG_PLAYER'

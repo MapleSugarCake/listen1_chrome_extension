@@ -13,6 +13,9 @@ function getParameterByName(name, url) {
   return decodeURIComponent(results[2].replace(/\+/g, ' '));
 }
 
+// The same provider code runs both as a Chrome extension and inside Electron.
+// These helpers hide the small API differences so provider modules can stay
+// platform-agnostic.
 function isElectron() {
   return window && window.process && window.process.type;
 }
@@ -76,6 +79,8 @@ function setPrototypeOfLocalStorage() {
   Object.setPrototypeOf(localStorage, proto);
 }
 
+// Local-storage feature flags are stored as JSON. This helper preserves falsy
+// values such as `false` while still falling back for missing keys.
 function getLocalStorageValue(key, defaultValue) {
   const keyString = localStorage.getItem(key);
   let result = keyString && JSON.parse(keyString);

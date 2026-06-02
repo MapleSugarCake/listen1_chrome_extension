@@ -77,6 +77,9 @@ const PROVIDERS = [
   },
 ];
 
+// Provider item ids use a two-character prefix (`ne`, `qq`, `kw`, ...). Keep
+// this registry as the single source of truth for routing search, playlist,
+// lyric, login, and fallback playback requests.
 function getProviderByName(sourceName) {
   return (PROVIDERS.find((i) => i.name === sourceName) || {}).instance;
 }
@@ -139,6 +142,9 @@ function mergePlatformSearchResults(platformResultArray) {
   return result;
 }
 
+// Provider parse_url functions use the legacy `{ success(fn) }` contract.
+// Promisifying them makes it possible to race all providers without changing
+// the public MediaService API.
 function providerParseUrl(provider, url) {
   return new Promise((resolve) => {
     provider.parse_url(url).success(resolve);
@@ -225,6 +231,11 @@ function bootstrapTrackFromProvider(source, track) {
 
 setPrototypeOfLocalStorage();
 
+/**
+ * Facade consumed by controllers. Provider methods intentionally return the
+ * legacy chainable shape `{ success(fn) }`; keeping that shape here avoids
+ * touching older Angular controller code while provider internals evolve.
+ */
 // eslint-disable-next-line no-unused-vars
 const MediaService = {
   getLoginProviders() {
@@ -434,6 +445,8 @@ const MediaService = {
         playerFailCallback();
         return;
       }
+      // When the source provider cannot produce a playable URL, search mirror
+      // providers by exact title/artist and use the first working bootstrap.
       const trackPlatform = getProviderNameByItemId(track.id);
       const failover_source_list = getLocalStorageValue(
         'auto_choose_source_list',
