@@ -110,6 +110,119 @@ function queryStringify(options) {
   return new URLSearchParams(query).toString();
 }
 
+function mergePlatformSearchResults(platformResultArray) {
+  if (!platformResultArray.length) {
+    return {
+      result: [],
+      total: 0,
+      type: '',
+    };
+  }
+
+  const result = {
+    result: [],
+    total: 1000,
+    type: platformResultArray[0].type,
+  };
+  const maxLength = Math.max(
+    ...platformResultArray.map((platformResult) => platformResult.result.length)
+  );
+
+  for (let index = 0; index < maxLength; index += 1) {
+    platformResultArray.forEach((platformResult) => {
+      if (index < platformResult.result.length) {
+        result.result.push(platformResult.result[index]);
+      }
+    });
+  }
+
+  return result;
+}
+
+function providerParseUrl(provider, url) {
+  return new Promise((resolve) => {
+    provider.parse_url(url).success(resolve);
+  });
+}
+
+function resolveFirstDefined(promises) {
+  return new Promise((resolve) => {
+    if (promises.length === 0) {
+      resolve(undefined);
+      return;
+    }
+
+    let pending = promises.length;
+    let settled = false;
+
+    promises.forEach((promise) => {
+      promise
+        .then((value) => {
+          pending -= 1;
+          if (!settled && value !== undefined) {
+            settled = true;
+            resolve(value);
+            return;
+          }
+          if (!settled && pending === 0) {
+            resolve(undefined);
+          }
+        })
+        .catch(() => {
+          pending -= 1;
+          if (!settled && pending === 0) {
+            resolve(undefined);
+          }
+        });
+    });
+  });
+}
+
+function buildBootstrapTrackSearchOptions(track) {
+  // Keep fallback search conservative: broad enough to find mirrors, but stable
+  // enough that different providers still return the same title/artist first.
+  return {
+    keywords: `${track.title} ${track.artist}`,
+    curpage: 1,
+    type: 0,
+  };
+}
+
+function isSameBootstrapCandidate(track, searchTrack) {
+  return (
+    !searchTrack.disable &&
+    searchTrack.title === track.title &&
+    searchTrack.artist === track.artist
+  );
+}
+
+function bootstrapTrackFromProvider(source, track) {
+  return new Promise((resolve) => {
+    if (track.source === source) {
+      resolve(undefined);
+      return;
+    }
+
+    const provider = getProviderByName(source);
+    const url = `/search?${queryStringify(
+      buildBootstrapTrackSearchOptions(track)
+    )}`;
+
+    provider.search(url).success((data) => {
+      const candidate = data.result.find((searchTrack) =>
+        isSameBootstrapCandidate(track, searchTrack)
+      );
+
+      if (!candidate) {
+        resolve(undefined);
+        return;
+      }
+
+      provider.bootstrap_track(candidate, resolve, () => resolve(undefined));
+    });
+  });
+}
+
 setPrototypeOfLocalStorage();
 
 // eslint-disable-next-line no-unused-vars
@@ -129,23 +242,7 @@ const MediaService = {
       return {
         success: (fn) =>
           async.parallel(callbackArray, (err, platformResultArray) => {
-            // TODO: nicer pager, playlist support
-            const result = {
-              result: [],
-              total: 1000,
-              type: platformResultArray[0].type,
-            };
-            const maxLength = Math.max(
-              ...platformResultArray.map((elem) => elem.result.length)
-            );
-            for (let i = 0; i < maxLength; i += 1) {
-              platformResultArray.forEach((elem) => {
-                if (i < elem.result.length) {
-                  result.result.push(elem.result[i]);
-                }
-              });
-            }
-            return fn(result);
+            return fn(mergePlatformSearchResults(platformResultArray));
           }),
       };
     }
@@ -303,21 +400,15 @@ const MediaService = {
     return {
       success: (fn) => {
         const providers = getAllProviders();
-        Promise.all(
-          providers.map(
-            (provider) =>
-              new Promise((res, rej) =>
-                provider.parse_url(url).success((r) => {
-                  if (r !== undefined) {
-                    return rej(r);
-                  }
-                  return res(r);
-                })
-              )
-          )
-        )
-          .then(() => fn({}))
-          .catch((result) => fn({ result }));
+        resolveFirstDefined(
+          providers.map((provider) => providerParseUrl(provider, url))
+        ).then((result) => {
+          if (result === undefined) {
+            fn({});
+            return;
+          }
+          fn({ result });
+        });
       },
     };
   },
@@ -349,52 +440,21 @@ const MediaService = {
         ['kuwo', 'qq', 'migu']
       ).filter((i) => i !== trackPlatform);
 
-      const getUrlPromises = failover_source_list.map(
-        (source) =>
-          new Promise((resolve, reject) => {
-            if (track.source === source) {
-              // come from same source, no need to check
-              resolve();
-              return;
-            }
-            // TODO: better query method
-            const keyword = `${track.title} ${track.artist}`;
-            const curpage = 1;
-            const url = `/search?keywords=${keyword}&curpage=${curpage}&type=0`;
-            const provider = getProviderByName(source);
-            provider.search(url).success((data) => {
-              for (let i = 0; i < data.result.length; i += 1) {
-                const searchTrack = data.result[i];
-                // compare search track and track to check if they are same
-                // TODO: better similar compare method (duration, md5)
-                if (
-                  !searchTrack.disable &&
-                  searchTrack.title === track.title &&
-                  searchTrack.artist === track.artist
-                ) {
-                  provider.bootstrap_track(
-                    searchTrack,
-                    (response) => {
-                      sound.url = response.url;
-                      sound.bitrate = response.bitrate;
-                      sound.platform = response.platform;
-                      reject(sound); // Use Reject to return immediately
-                    },
-                    resolve
-                  );
-                  return;
-                }
-              }
-              resolve(sound);
-            });
-          })
-      );
-      // TODO: Use Promise.any() in ES2021 replace the tricky workaround
-      Promise.all(getUrlPromises)
-        .then(playerFailCallback)
-        .catch((response) => {
-          playerSuccessCallback(response);
-        });
+      resolveFirstDefined(
+        failover_source_list.map((source) =>
+          bootstrapTrackFromProvider(source, track)
+        )
+      ).then((response) => {
+        if (response === undefined) {
+          playerFailCallback();
+          return;
+        }
+
+        sound.url = response.url;
+        sound.bitrate = response.bitrate;
+        sound.platform = response.platform;
+        playerSuccessCallback(sound);
+      });
     }
 
     const provider = getProviderByName(track.source);

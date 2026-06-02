@@ -57,8 +57,9 @@
         disabled: false, // avoid first time load block
         howl: null,
       };
-      if (idx) {
-        this.playlist.splice(idx, 0, [audio]);
+      if (typeof idx === 'number') {
+        // Keep the queue flat even when inserting at the head of the list.
+        this.playlist.splice(idx, 0, audioData);
       } else {
         this.playlist.push(audioData);
       }
@@ -659,7 +660,7 @@
       threadPlayer.sendFrameUpdate();
     });
   }
-  playerSendMessage(this.mode, {
+  playerSendMessage(threadPlayer.mode, {
     type: 'BG_PLAYER:READY',
   });
 }
