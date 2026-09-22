@@ -1,5 +1,3 @@
-/* eslint-disable import/no-unresolved */
-/* eslint-disable global-require */
 /* eslint-disable no-shadow */
 /* eslint-disable no-unused-vars */
 /* eslint-disable no-param-reassign */
@@ -10,7 +8,7 @@ angular.module('listenone').controller('NavigationController', [
   '$timeout',
   '$rootScope',
   ($scope, $timeout, $rootScope) => {
-    $rootScope.page_title = { title: 'Listen 1', artist: '', status: '' }; // eslint-disable-line no-param-reassign
+    $rootScope.page_title = { title: 'Listen 1', artist: '', status: '' };
     $scope.window_url_stack = [];
     $scope.window_poped_url_stack = [];
     $scope.current_tag = 2;
@@ -30,6 +28,77 @@ angular.module('listenone').controller('NavigationController', [
     $scope.lastfm = lastfm;
 
     $scope.isOpenSidebar = true;
+
+    let windowGeneration = 0;
+    let windowRequest;
+    let directGeneration = 0;
+    let directRequest;
+    function cancelWindowRequest() {
+      windowGeneration += 1;
+      windowRequest?.cancel();
+      windowRequest = null;
+    }
+    function playlistError(error) {
+      if (error.code !== 'CANCELLED')
+        notyf.info(
+          i18next.t(`_ERROR_${error.code}`, {
+            defaultValue: i18next.t('_ERROR_UNKNOWN'),
+          })
+        );
+    }
+    function loadWindowPlaylist(listId, useCache, offset = 0) {
+      cancelWindowRequest();
+      const generation = windowGeneration;
+      windowRequest = MediaService.getPlaylist(listId, useCache);
+      windowRequest
+        .success((data) =>
+          $scope.$evalAsync(() => {
+            if (generation !== windowGeneration) return;
+            if (data.status === '0') {
+              notyf.info(data.reason);
+              $scope.popWindow();
+              return;
+            }
+            if (!data.info || !Array.isArray(data.tracks)) {
+              playlistError({ code: 'INVALID_RESPONSE' });
+              return;
+            }
+            $scope.songs = data.tracks;
+            $scope.list_id = data.info.id;
+            $scope.cover_img_url = data.info.cover_img_url;
+            $scope.playlist_title = data.info.title;
+            $scope.playlist_source_url = data.info.source_url;
+            $scope.is_mine = data.info.id.slice(0, 2) === 'my';
+            $scope.is_local = data.info.id.slice(0, 2) === 'lm';
+            $scope.window_type = 'list';
+            MediaService.queryPlaylist(data.info.id, 'favorite').success(
+              (res) => {
+                $scope.$evalAsync(() => {
+                  if (generation === windowGeneration)
+                    $scope.is_favorite = res.result;
+                });
+              }
+            );
+            $timeout(() => {
+              if (generation === windowGeneration)
+                document.getElementsByClassName('browser')[0].scrollTop =
+                  offset;
+            }, 0);
+          })
+        )
+        .error((error) =>
+          $scope.$evalAsync(() => {
+            if (generation !== windowGeneration) return;
+            $scope.cover_img_url = '';
+            playlistError(error);
+          })
+        );
+    }
+    $scope.$on('$destroy', () => {
+      cancelWindowRequest();
+      directGeneration += 1;
+      directRequest?.cancel();
+    });
 
     $scope.$on('isdoubanlogin:update', (event, data) => {
       $scope.isDoubanLogin = data;
@@ -63,6 +132,7 @@ angular.module('listenone').controller('NavigationController', [
 
     // playlist window
     $scope.resetWindow = (offset) => {
+      cancelWindowRequest();
       if (offset === undefined) {
         offset = 0;
       }
@@ -92,18 +162,7 @@ angular.module('listenone').controller('NavigationController', [
         return;
       }
       const listId = new URL(url, window.location).searchParams.get('list_id');
-      MediaService.getPlaylist(listId).success((data) => {
-        $scope.songs = data.tracks;
-        $scope.list_id = data.info.id;
-        $scope.cover_img_url = data.info.cover_img_url;
-        $scope.playlist_title = data.info.title;
-        $scope.playlist_source_url = data.info.source_url;
-        $scope.is_mine = data.info.id.slice(0, 2) === 'my';
-        $scope.is_local = data.info.id.slice(0, 2) === 'lm';
-        $timeout(() => {
-          document.getElementsByClassName('browser')[0].scrollTop = offset;
-        }, 0);
-      });
+      loadWindowPlaylist(listId, true, offset);
     }
     $scope.popWindow = () => {
       if ($scope.window_url_stack.length === 0) {
@@ -180,38 +239,30 @@ angular.module('listenone').controller('NavigationController', [
       $scope.window_poped_url_stack = [];
 
       const listId = new URL(url, window.location).searchParams.get('list_id');
-      MediaService.getPlaylist(listId, useCache).success((data) => {
-        if (data.status === '0') {
-          notyf.info(data.reason);
-          $scope.popWindow();
-          return;
-        }
-        $scope.songs = data.tracks;
-        $scope.cover_img_url = data.info.cover_img_url;
-        $scope.playlist_title = data.info.title;
-        $scope.playlist_source_url = data.info.source_url;
-        $scope.list_id = data.info.id;
-        $scope.is_mine = data.info.id.slice(0, 2) === 'my';
-        $scope.is_local = data.info.id.slice(0, 2) === 'lm';
-
-        MediaService.queryPlaylist(data.info.id, 'favorite').success((res) => {
-          // success 函数可能在异步回调中执行，需要手动触发脏检查
-          $timeout(() => {
-            $scope.is_favorite = res.result;
-          }, 0);
-        });
-
-        $scope.window_type = 'list';
-      });
+      loadWindowPlaylist(listId, useCache);
     };
 
     $scope.directplaylist = (list_id) => {
-      MediaService.getPlaylist(list_id).success((data) => {
-        $scope.songs = data.tracks;
-        $scope.current_list_id = list_id;
-        l1Player.setNewPlaylist($scope.songs);
-        l1Player.play();
-      });
+      directGeneration += 1;
+      const generation = directGeneration;
+      directRequest?.cancel();
+      directRequest = MediaService.getPlaylist(list_id);
+      directRequest
+        .success((data) =>
+          $scope.$evalAsync(() => {
+            if (generation !== directGeneration) return;
+            if (!Array.isArray(data.tracks)) {
+              playlistError({ code: 'INVALID_RESPONSE' });
+              return;
+            }
+            $scope.current_list_id = list_id;
+            l1Player.setNewPlaylist(data.tracks);
+            l1Player.play();
+          })
+        )
+        .error((error) => {
+          if (generation === directGeneration) playlistError(error);
+        });
     };
 
     $scope.showDialog = (dialog_type, data) => {
@@ -504,6 +555,7 @@ angular.module('listenone').controller('NavigationController', [
       document.body.appendChild(link);
       link.click();
       link.remove();
+      URL.revokeObjectURL(link.href);
     };
 
     $scope.backupMySettings = () => {
@@ -518,7 +570,7 @@ angular.module('listenone').controller('NavigationController', [
 
     $scope.importMySettings = (event) => {
       const fileObject = event.target.files[0];
-      if (fileObject === null) {
+      if (!fileObject) {
         notyf.warning('请选择备份文件');
         return;
       }
@@ -530,6 +582,8 @@ angular.module('listenone').controller('NavigationController', [
           let data = null;
           try {
             data = JSON.parse(data_json);
+            if (!data || typeof data !== 'object' || Array.isArray(data))
+              throw new Error('Invalid backup');
           } catch (e) {
             notyf.warning('备份文件格式错误，请重新选择');
             return;
@@ -646,58 +700,30 @@ angular.module('listenone').controller('NavigationController', [
 
     $scope.addLocalMusic = (list_id) => {
       if (isElectron()) {
-        const remote = require('@electron/remote');
-        const remoteFunctions = remote.require('./functions.js');
-        remote.dialog
-          .showOpenDialog({
-            title: '添加歌曲',
-            properties: ['openFile', 'multiSelections'],
-            filters: [
-              {
-                name: 'Music Files',
-                extensions: ['flac', 'mp3', 'mp4', 'ogg', 'wav', 'webm'],
-              },
-            ],
-          })
+        window.listen1Desktop
+          .importLocalMusic()
           .then((result) => {
-            if (result.canceled) {
+            if (result.cancelled || !result.tracks.length) {
               return;
             }
 
-            result.filePaths.forEach((fp) => {
-              remoteFunctions.readAudioTags(fp).then((md) => {
-                const track = {
-                  id: `lmtrack_${fp}`,
-                  title: md.common.title,
-                  artist: md.common.artist,
-                  artist_id: `lmartist_${md.common.artist}`,
-                  album: md.common.album,
-                  album_id: `lmalbum_${md.common.album}`,
-                  source: 'localmusic',
-                  source_url: '',
-                  img_url: '',
-                  lyrics: md.common.lyrics,
-                  // url: "lmtrack_"+fp,
-                  sound_url: `file://${fp}`,
-                };
-
-                const list_id = 'lmplaylist_reserve';
-                MediaService.addPlaylist(list_id, [track]).success((res) => {
-                  const { playlist } = res;
-                  $scope.songs = playlist.tracks;
-                  $scope.list_id = playlist.info.id;
-                  $scope.cover_img_url = playlist.info.cover_img_url;
-                  $scope.playlist_title = playlist.info.title;
-                  $scope.playlist_source_url = playlist.info.source_url;
-                  $scope.is_mine = playlist.info.id.slice(0, 2) === 'my';
-                  $scope.is_local = playlist.info.id.slice(0, 2) === 'lm';
-                  $scope.$evalAsync();
-                });
-              });
+            const list_id = 'lmplaylist_reserve';
+            MediaService.addPlaylist(list_id, result.tracks).success((res) => {
+              const { playlist } = res;
+              $scope.songs = playlist.tracks;
+              $scope.list_id = playlist.info.id;
+              $scope.cover_img_url = playlist.info.cover_img_url;
+              $scope.playlist_title = playlist.info.title;
+              $scope.playlist_source_url = playlist.info.source_url;
+              $scope.is_mine = playlist.info.id.slice(0, 2) === 'my';
+              $scope.is_local = playlist.info.id.slice(0, 2) === 'lm';
+              $scope.$evalAsync();
             });
+            if (result.errors.length)
+              notyf.info(i18next.t('_LOCAL_IMPORT_PARTIAL'));
           })
           .catch((err) => {
-            // console.log(err);
+            notyf.info(i18next.t('_LOCAL_IMPORT_FAILED'));
           });
       }
     };

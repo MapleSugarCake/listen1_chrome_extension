@@ -1,5 +1,5 @@
 /* eslint-disable no-underscore-dangle */
-/* global MediaMetadata playerSendMessage MediaService */
+/* global playerSendMessage MediaService */
 /* global Howl Howler */
 {
   /**
@@ -17,8 +17,28 @@
       // They are intentionally not persisted because provider URLs can expire.
       this._media_uri_list = {};
       this.playedFrom = 0;
-      this.mode = 'background';
+      this.mode =
+        window.listen1Desktop ||
+        !(
+          (typeof chrome !== 'undefined' && chrome.runtime) ||
+          (typeof browser !== 'undefined' && browser.runtime)
+        )
+          ? 'front'
+          : 'background';
       this.skipTime = 15;
+      this._generation = 0;
+      this._pending = null;
+      this._media_expiry = {};
+      this._loadTimer = null;
+      this._loadRetries = new Map();
+    }
+
+    cancelPending() {
+      this._generation += 1;
+      const pending = this._pending;
+      this._pending = null;
+      if (pending && pending.task) pending.task.cancel();
+      clearTimeout(this._loadTimer);
     }
 
     setMode(newMode) {
@@ -52,6 +72,7 @@
     }
 
     insertAudio(audio, idx) {
+      if (!audio || !audio.id) return;
       if (this.playlist.find((i) => audio.id === i.id)) return;
 
       const audioData = {
@@ -65,6 +86,8 @@
       } else {
         this.playlist.push(audioData);
       }
+      this._random_playlist = [];
+      if (typeof idx === 'number' && idx <= this.index) this.index += 1;
       this.sendPlaylistEvent();
       this.sendLoadEvent();
     }
@@ -86,7 +109,7 @@
       const originTrack = this.playlist[this.index];
       const index = this.playlist.findIndex((i) => i.id === audio.id);
       let insertIndex = this.playlist.findIndex((i) => i.id === to_audio.id);
-      if (index === insertIndex) {
+      if (index < 0 || insertIndex < 0 || index === insertIndex) {
         return;
       }
       if (insertIndex > index) {
@@ -99,11 +122,12 @@
         insertIndex + offset
       );
       const foundOriginTrackIndex = this.playlist.findIndex(
-        (i) => i.id === originTrack.id
+        (i) => originTrack && i.id === originTrack.id
       );
       if (foundOriginTrackIndex >= 0) {
         this.index = foundOriginTrackIndex;
       }
+      this._random_playlist = [];
 
       this.sendPlaylistEvent();
       this.sendLoadEvent();
@@ -114,14 +138,21 @@
         return;
       }
       // restore playing status before change
-      const isPlaying = this.playing;
-      const { id: trackId } = this.currentAudio;
+      const isPlaying = this.playing || !!this._pending;
+      const trackId = this.currentAudio && this.currentAudio.id;
+      const removed = this.playlist[idx];
+      if (removed.id === trackId) this.cancelPending();
 
       if (isPlaying && this.playlist[idx].id === trackId) {
         this.pause();
       }
 
       this.playlist.splice(idx, 1);
+      if (removed.howl) removed.howl.unload();
+      delete this._media_uri_list[removed.id];
+      delete this._media_expiry[removed.id];
+      this._loadRetries.delete(removed.id);
+      this._random_playlist = [];
       const newIndex = this.playlist.findIndex((i) => i.id === trackId);
       if (newIndex >= 0) {
         this.index = newIndex;
@@ -132,30 +163,49 @@
         } else {
           this.index = idx;
         }
-        if (isPlaying) {
+        if (isPlaying && this.playlist.length) {
           this.play();
         }
       }
 
       this.sendPlaylistEvent();
       this.sendLoadEvent();
+      this.sendPlayingEvent('Removed');
     }
 
     appendAudioList(list) {
       if (!Array.isArray(list)) {
         return;
       }
-      list.forEach((audio) => {
-        this.insertAudio(audio);
+      const ids = new Set(this.playlist.map((audio) => audio.id));
+      const additions = list.filter((audio) => {
+        if (!audio || !audio.id || ids.has(audio.id)) return false;
+        ids.add(audio.id);
+        return true;
       });
-    }
-
-    clearPlaylist() {
-      this.stopAll(); // stop the loadded track before remove list
-      this.playlist = [];
-      Howler.unload();
+      if (!additions.length) return;
+      this.playlist.push(
+        ...additions.map((audio) => ({ ...audio, disabled: false, howl: null }))
+      );
+      this._random_playlist = [];
       this.sendPlaylistEvent();
       this.sendLoadEvent();
+    }
+
+    clearPlaylist(notify = true) {
+      this.cancelPending();
+      this.unloadAll();
+      this.playlist = [];
+      this.index = -1;
+      this._random_playlist = [];
+      this._media_uri_list = {};
+      this._media_expiry = {};
+      this._loadRetries.clear();
+      if (notify) {
+        this.sendPlaylistEvent();
+        this.sendLoadEvent();
+        this.sendPlayingEvent('Cleared');
+      }
     }
 
     stopAll() {
@@ -166,26 +216,40 @@
       });
     }
 
-    setNewPlaylist(list) {
-      if (list.length) {
-        // stop current
-        this.stopAll();
-        Howler.unload();
+    unloadAll() {
+      this.playlist.forEach((track) => {
+        if (track.howl) track.howl.unload();
+        track.howl = null; // eslint-disable-line no-param-reassign -- release the queued track's native audio resource
+      });
+    }
 
-        this.playlist = list.map((audio) => ({
-          ...audio,
-          howl: null,
-        }));
+    setNewPlaylist(list) {
+      if (!Array.isArray(list)) return;
+      this.clearPlaylist(false);
+      if (list.length) {
+        const ids = new Set();
+        this.playlist = list
+          .filter((audio) => {
+            if (!audio || !audio.id || ids.has(audio.id)) return false;
+            ids.add(audio.id);
+            return true;
+          })
+          .map((audio) => ({
+            ...audio,
+            howl: null,
+          }));
         // TODO: random mode need random choose first song to load
-        this.index = 0;
+        this.index = this.playlist.length ? 0 : -1;
         this.load(0);
       }
       this.sendPlaylistEvent();
+      if (!this.playlist.length) this.sendLoadEvent();
+      this.sendPlayingEvent('QueueChanged');
     }
 
     playById(id) {
       const idx = this.playlist.findIndex((audio) => audio.id === id);
-      this.play(idx);
+      if (idx >= 0) this.play(idx);
     }
 
     loadById(id) {
@@ -199,10 +263,15 @@
      * (leave empty to play the first or current).
      */
     play(idx) {
-      this.load(idx);
+      if (!this.playlist.length) return;
+      if (typeof idx === 'number' && !this.playlist[idx]) return;
+      this.load(this.index < 0 && idx === undefined ? 0 : idx);
 
       const data = this.playlist[this.index];
-      if (!data.howl || !this._media_uri_list[data.id]) {
+      if (!data) return;
+      if (this._media_expiry[data.id] < Date.now())
+        delete this._media_uri_list[data.id];
+      if (!this._media_uri_list[data.id]) {
         this.retrieveMediaUrl(this.index, true);
       } else {
         this.finishLoad(this.index, true);
@@ -210,6 +279,19 @@
     }
 
     retrieveMediaUrl(index, playNow) {
+      const track = this.playlist[index];
+      if (!track) return;
+      if (this._pending && this._pending.id === track.id) return;
+      this.cancelPending();
+      const generation = this._generation;
+      if (track.howl) {
+        track.howl.unload();
+        track.howl = null;
+      }
+      const pending = { id: track.id, task: null };
+      this._pending = pending;
+      const isCurrent = () =>
+        generation === this._generation && this.currentAudio === track;
       // Providers may return a direct URL from the original source or from a
       // mirror provider selected by MediaService.bootstrapTrack.
       const msg = {
@@ -222,23 +304,30 @@
         },
       };
 
-      MediaService.bootstrapTrack(
+      pending.task = MediaService.bootstrapTrack(
         msg.data,
         (bootinfo) => {
+          if (!isCurrent()) return;
+          this._pending = null;
           msg.type = 'BG_PLAYER:RETRIEVE_URL_SUCCESS';
 
           msg.data = { ...msg.data, ...bootinfo };
 
-          this.playlist[index].bitrate = bootinfo.bitrate;
-          this.playlist[index].platform = bootinfo.platform;
+          track.bitrate = bootinfo.bitrate;
+          track.platform = bootinfo.platform;
+          msg.data.index = this.index;
 
           this.setMediaURI(msg.data.url, msg.data.id);
           this.setAudioDisabled(false, msg.data.index);
           this.finishLoad(msg.data.index, playNow);
           playerSendMessage(this.mode, msg);
         },
-        () => {
+        (error) => {
+          if (!isCurrent()) return;
+          this._pending = null;
           msg.type = 'BG_PLAYER:RETRIEVE_URL_FAIL';
+          msg.data.error = error;
+          msg.data.index = this.index;
 
           this.setAudioDisabled(true, msg.data.index);
           playerSendMessage(this.mode, msg);
@@ -254,6 +343,7 @@
      * (leave empty to load the first or current).
      */
     load(idx) {
+      if (!this.playlist.length) return;
       let index = typeof idx === 'number' ? idx : this.index;
       if (index < 0) return;
       if (!this.playlist[index]) {
@@ -261,7 +351,8 @@
       }
       // stop when load new track to avoid multiple songs play in same time
       if (index !== this.index) {
-        Howler.unload();
+        this.cancelPending();
+        this.unloadAll();
       }
       this.index = index;
 
@@ -270,18 +361,44 @@
 
     finishLoad(index, playNow) {
       const data = this.playlist[index];
+      if (!data || data !== this.currentAudio) return;
 
       // If we already loaded this track, use the current one.
       // Otherwise, setup and load a new Howl.
       const self = this;
+      const generation = this._generation;
+      const isCurrent = () =>
+        generation === self._generation && self.currentAudio === data;
+      const failLoad = (err) => {
+        if (!isCurrent()) return;
+        clearTimeout(self._loadTimer);
+        if (data.howl) data.howl.unload();
+        data.howl = null;
+        delete self._media_uri_list[data.id];
+        const attempts = self._loadRetries.get(data.id) || 0;
+        if (attempts < 1) {
+          self._loadRetries.set(data.id, attempts + 1);
+          self.retrieveMediaUrl(self.index, playNow);
+          return;
+        }
+        data.disabled = true;
+        playerSendMessage(self.mode, {
+          type: 'BG_PLAYER:PLAY_FAILED',
+          data: { code: 'MEDIA_ERROR', trackId: data.id, detail: err },
+        });
+        self.sendPlayingEvent('Error');
+        self.skip('next');
+      };
       if (!data.howl) {
         data.howl = new Howl({
-          src: [self._media_uri_list[data.url || data.id]],
+          src: [self._media_uri_list[data.id]],
           format: 'mp3', // bypass Howl checking url extension, issue #1200
           volume: 1,
           mute: self.muted,
           html5: true, // Force to HTML5 so that the audio can stream in (best for large files).
           onplay() {
+            if (!isCurrent()) return;
+            clearTimeout(self._loadTimer);
             if ('mediaSession' in navigator) {
               const { mediaSession } = navigator;
               mediaSession.playbackState = 'playing';
@@ -305,10 +422,12 @@
             self.sendPlayingEvent('Playing');
           },
           onload() {
+            if (!isCurrent()) return;
             self.currentAudio.disabled = false;
             self.sendPlayingEvent('Loaded');
           },
           onend() {
+            if (!isCurrent()) return;
             switch (self.loop_mode) {
               case 2:
                 self.skip('random');
@@ -326,32 +445,22 @@
             self.sendPlayingEvent('Ended');
           },
           onpause() {
-            navigator.mediaSession.playbackState = 'paused';
+            if (!isCurrent()) return;
+            if (navigator.mediaSession)
+              navigator.mediaSession.playbackState = 'paused';
             self.sendPlayingEvent('Paused');
           },
           onstop() {
+            if (!isCurrent()) return;
             self.sendPlayingEvent('Stopped');
           },
           onseek() {},
           onvolume() {},
           onloaderror(id, err) {
-            playerSendMessage(this.mode, {
-              type: 'BG_PLAYER:PLAY_FAILED',
-              data: err,
-            });
-            self.currentAudio.disabled = true;
-            self.sendPlayingEvent('err');
-            self.currentHowl.unload();
-            data.howl = null;
-            delete self._media_uri_list[data.id];
+            failLoad(err);
           },
           onplayerror(id, err) {
-            playerSendMessage(this.mode, {
-              type: 'BG_PLAYER:PLAY_FAILED',
-              data: err,
-            });
-            self.currentAudio.disabled = true;
-            self.sendPlayingEvent('err');
+            failLoad(err);
           },
         });
       }
@@ -366,6 +475,10 @@
           }
         });
         this.currentHowl.play();
+        clearTimeout(this._loadTimer);
+        this._loadTimer = setTimeout(() => {
+          if (!this.playing) failLoad('LOAD_TIMEOUT');
+        }, 15000);
       }
     }
 
@@ -373,6 +486,8 @@
      * Pause the currently playing track.
      */
     pause() {
+      if (this._pending) this.cancelPending();
+      clearTimeout(this._loadTimer);
       if (!this.currentHowl) return;
 
       // Puase the sound.
@@ -384,7 +499,12 @@
      * @param  {String} direction 'next' or 'prev'.
      */
     skip(direction) {
-      Howler.unload();
+      this.cancelPending();
+      if (!this.playlist.length) {
+        this.index = -1;
+        return;
+      }
+      this.unloadAll();
       // Get the next track based on the direction of the track.
       const nextIndexFn = (idx) => {
         const l = this.playlist.length;
@@ -398,16 +518,15 @@
             const a = Array.from({ length: l }, (_v, i) => i);
             for (let i = 0; i < l; i += 1) {
               const e = l - i - 1;
-              const s = Math.floor(Math.random() * e);
+              const s = Math.floor(Math.random() * (e + 1));
               const t = a[s];
               a[s] = a[e];
               a[e] = t;
-              // lookup table
-              a[t + l] = e;
             }
+            for (let i = 0; i < l; i += 1) a[a[i] + l] = i;
             this._random_playlist = a;
           }
-          rdx = this._random_playlist[idx + l];
+          rdx = this._random_playlist[idx + l] ?? -1;
         } else if (this._random_playlist.length !== 0) {
           // clear random playlist
           this._random_playlist = [];
@@ -437,6 +556,7 @@
       playerSendMessage(this.mode, {
         type: 'BG_PLAYER:RETRIEVE_URL_FAIL_ALL',
       });
+      this.sendPlayingEvent('Unavailable');
       this.sendLoadEvent();
     }
 
@@ -446,7 +566,7 @@
         one: 1,
         shuffle: 2,
       };
-      let myMode = 0;
+      let myMode;
       if (typeof input === 'string') {
         myMode = LOOP_MODE[input];
       } else {
@@ -545,6 +665,7 @@
     setMediaURI(uri, url) {
       if (url) {
         this._media_uri_list[url] = uri;
+        this._media_expiry[url] = Date.now() + 5 * 60 * 1000;
       }
     }
 
@@ -562,11 +683,16 @@
         playedFrom: this.playedFrom,
         playing: this.playing,
       };
-      if ('setPositionState' in navigator.mediaSession) {
+      if (
+        navigator.mediaSession &&
+        'setPositionState' in navigator.mediaSession &&
+        Number.isFinite(data.duration) &&
+        data.duration > 0
+      ) {
         navigator.mediaSession.setPositionState({
           duration: this.currentHowl ? this.currentHowl.duration() : 0,
           playbackRate: this.currentHowl ? this.currentHowl.rate() : 1,
-          position: this.currentHowl ? this.currentHowl.seek() : 0,
+          position: Math.max(0, Math.min(Number(data.pos) || 0, data.duration)),
         });
       }
 
@@ -636,6 +762,7 @@
     mediaSession.setActionHandler('seekforward', (details) => {
       // User clicked "Seek Forward" media notification icon.
       const { currentHowl } = threadPlayer;
+      if (!currentHowl) return;
       const skipTime = details.seekOffset || threadPlayer.skipTime;
       const newTime = Math.min(
         currentHowl.seek() + skipTime,
@@ -647,6 +774,7 @@
     mediaSession.setActionHandler('seekbackward', (details) => {
       // User clicked "Seek Backward" media notification icon.
       const { currentHowl } = threadPlayer;
+      if (!currentHowl) return;
       const skipTime = details.seekOffset || threadPlayer.skipTime;
       const newTime = Math.max(currentHowl.seek() - skipTime, 0);
       threadPlayer.seekTime(newTime);

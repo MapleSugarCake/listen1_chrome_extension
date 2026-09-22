@@ -1,6 +1,10 @@
-/* global isElectron require */
-/* eslint-disable global-require */
+/* global isElectron */
+
 function github() {
+  if (isElectron())
+    window.listen1Desktop.on('githubOAuthCode', (code) =>
+      window.GithubClient.github.handleCallback(code)
+    );
   const OAUTH_URL = 'https://github.com/login/oauth';
   const API_URL = 'https://api.github.com';
 
@@ -50,16 +54,7 @@ function github() {
         Github.status = 1;
         const url = `${OAUTH_URL}/authorize?client_id=${client_id}&scope=gist`;
         if (isElectron()) {
-          // normal window for link
-          const { BrowserWindow } = require('@electron/remote'); // eslint-disable-line import/no-unresolved
-          let win = new BrowserWindow({
-            width: 1000,
-            height: 670,
-          });
-          win.on('closed', () => {
-            win = null;
-          });
-          win.loadURL(url);
+          window.listen1Desktop.openLogin(url);
           return;
         }
         window.open(url, '_blank');
@@ -157,8 +152,8 @@ function github() {
       },
 
       backupMySettings2Gist(files, gistId, isPublic) {
-        let method = '';
-        let url = '';
+        let method;
+        let url;
         if (gistId != null) {
           method = 'patch';
           url = `/gists/${gistId}`;

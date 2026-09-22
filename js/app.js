@@ -1,11 +1,9 @@
-/* eslint-disable no-shadow */
-/* global l1Player require */
+/* global l1Player RequestTask */
 /* global angular isElectron i18next i18nextHttpBackend Notyf notyf */
 /* global setPrototypeOfLocalStorage  */
-/* eslint-disable global-require */
+
 /* eslint-disable no-unused-vars */
 /* eslint-disable no-param-reassign */
-/* eslint-disable import/no-unresolved */
 
 const sourceList = [
   {
@@ -51,14 +49,9 @@ const main = () => {
   ]);
 
   app.run([
-    '$q',
-    ($q) => {
-      // Wrap axios promises with Angular's $q so async provider responses still
-      // trigger digest updates in older controllers.
-      axios.Axios.prototype.request_original = axios.Axios.prototype.request;
-      axios.Axios.prototype.request = function new_req(config) {
-        return $q.when(this.request_original(config));
-      };
+    '$rootScope',
+    ($rootScope) => {
+      RequestTask.setNotifier(() => $rootScope.$evalAsync());
       window.notyf = new Notyf({
         duration: 5000,
         ripple: true,
@@ -141,12 +134,20 @@ const main = () => {
     });
   });
 
+  app.directive('searchStatus', () => ({
+    restrict: 'E',
+    template: `<div class="search-status" role="status" aria-live="polite">
+      <p ng-if="searchError">{{searchErrorMessage}}</p>
+      <span ng-repeat="source in searchSources track by source.name" style="display:inline-block; margin:4px 12px 4px 0">{{source.label}}: {{source.message}}<span ng-if="source.count"> ({{source.count}})</span></span>
+    </div>`,
+  }));
+
   app.directive('pagination', () => ({
     restrict: 'EA',
     replace: false,
-    template: ` <button class="btn btn-sm btn-pagination" ng-click="previousPage()" ng-disabled="curpage==1"> 上一页</button>
-    <label> {{curpage}}/{{totalpage}} 页 </label>
-    <button class="btn btn-sm btn-pagination" ng-click="nextPage()" ng-disabled="curpage==totalpage"> 下一页</button>`,
+    template: ` <button class="btn btn-sm btn-pagination" ng-click="previousPage()" ng-disabled="curpage<=1 || loading"> {{_PREVIOUS_PAGE}}</button>
+    <label> {{curpage}}<span ng-if="totalpage !== null"> / {{totalpage}}</span> </label>
+    <button class="btn btn-sm btn-pagination" ng-click="nextPage()" ng-disabled="!hasMore || loading"> {{_NEXT_PAGE}}</button>`,
   }));
 
   app.directive('errSrc', () => ({
@@ -218,8 +219,7 @@ const main = () => {
       link(scope, element, attrs) {
         element.bind('click', (event) => {
           if (isElectron()) {
-            const { shell } = require('electron');
-            shell.openExternal(scope.url);
+            window.listen1Desktop.openExternal(scope.url);
           } else {
             $window.open(scope.url, '_blank');
           }
@@ -238,8 +238,7 @@ const main = () => {
       link(scope, element, attrs) {
         element.bind('click', (event) => {
           if (isElectron()) {
-            const { ipcRenderer } = require('electron');
-            ipcRenderer.send('control', scope.action);
+            window.listen1Desktop.control(scope.action);
           }
         });
       },
@@ -396,10 +395,9 @@ const main = () => {
           const [dragType] = event.dataTransfer.types;
           const jsonString = event.dataTransfer.getData(dragType);
           const data = JSON.parse(jsonString);
-          let direction = '';
           const bounding = event.target.getBoundingClientRect();
           const offset = bounding.y + bounding.height / 2;
-          direction = event.clientY - offset > 0 ? 'bottom' : 'top';
+          const direction = event.clientY - offset > 0 ? 'bottom' : 'top';
           // https://stackoverflow.com/questions/19889615/can-an-angular-directive-pass-arguments-to-functions-in-expressions-specified-in
           scope.ondrop({ arg1: data, arg2: dragType, arg3: direction });
 

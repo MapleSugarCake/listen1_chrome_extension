@@ -4,10 +4,13 @@
   "description": "one for all free music in china",
   "main": "index.js",
   "scripts": {
-    "lint": "eslint . --ext .js",
+    "lint": "eslint .",
     "format": "prettier --write \"**/*.{js,css,md,json}\"",
     "format:check": "prettier --check \"**/*.{js,css,md,json}\"",
-    "test": "npm run lint && npm run format:check"
+    "test": "node --test test/*.test.cjs",
+    "vendor:build": "node scripts/build-vendor.cjs",
+    "vendor:check": "node scripts/build-vendor.cjs --check",
+    "prepare": "node scripts/install-hooks.cjs"
   },
   "repository": {
     "type": "git",
@@ -19,22 +22,39 @@
     "url": "https://github.com/listen1/listen1_chrome_extension/issues"
   },
   "homepage": "https://github.com/listen1/listen1_chrome_extension#readme",
-  "devDependencies": {
-    "eslint": "^7.30.0",
-    "eslint-config-airbnb-base": "^14.2.1",
-    "eslint-config-prettier": "^8.3.0",
-    "eslint-plugin-import": "^2.23.4",
-    "husky": "^4.3.8",
-    "lint-staged": "^10.5.4",
-    "prettier": "^2.3.2"
+  "engines": {
+    "node": ">=24.21.0 <25",
+    "npm": ">=12 <13"
   },
-  "husky": {
-    "hooks": {
-      "pre-commit": "lint-staged"
-    }
+  "packageManager": "npm@12.0.2",
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "unrs-resolver": false
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "angular": "1.8.3",
+    "async": "3.2.6",
+    "axios": "1.20.0",
+    "esbuild": "0.28.2",
+    "eslint": "10.11.0",
+    "eslint-config-prettier": "10.1.8",
+    "eslint-plugin-import-x": "4.17.1",
+    "globals": "17.12.0",
+    "hotkeys-js": "4.0.8",
+    "howler": "2.2.4",
+    "husky": "9.1.7",
+    "i18next": "26.4.2",
+    "i18next-http-backend": "4.0.2",
+    "lint-staged": "17.5.1",
+    "lru-cache": "11.5.3",
+    "node-forge": "1.4.0",
+    "notyf": "3.10.0",
+    "prettier": "3.9.8"
   },
   "lint-staged": {
-    "!(**/vendor/*.js)*.js": "eslint --cache --fix",
-    "!(**/vendor/*.js)*.{js,css,md}": "prettier --write"
+    "js/!(vendor)/**/*.js": "eslint --cache --fix",
+    "js/*.js": "eslint --cache --fix",
+    "*.{js,cjs,mjs,css,md,json}": "prettier --write"
   }
 }

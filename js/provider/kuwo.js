@@ -1,5 +1,5 @@
-/* eslint-disable no-undef */
 /* eslint-disable no-unused-vars */
+/* global RequestTask */
 /* global async getParameterByName isElectron */
 
 // Kuwo's current web API requires a per-session Secret header. The copied
@@ -32,7 +32,7 @@ function h(t, e) {
       null
     );
   var d = Math.round(1e9 * Math.random()) % 1e8;
-  for (n += d; n.length > 10; )
+  for (n += d; n.length > 10;)
     n = (
       parseInt(n.substring(0, 10)) + parseInt(n.substring(10, n.length))
     ).toString();
@@ -40,12 +40,12 @@ function h(t, e) {
   var h = '',
     f = '';
   for (i = 0; i < t.length; i++)
-    (f +=
+    ((f +=
       (h = parseInt(t.charCodeAt(i) ^ Math.floor((n / c) * 255))) < 16
         ? '0' + h.toString(16)
         : h.toString(16)),
-      (n = (o * n + l) % c);
-  for (d = d.toString(16); d.length < 8; ) d = '0' + d;
+      (n = (o * n + l) % c));
+  for (d = d.toString(16); d.length < 8;) d = '0' + d;
   return (f += d);
 }
 
@@ -232,7 +232,7 @@ class kuwo {
     kw_add_song_pic_in_track(track, params, callback);
   }
   */
-  static kw_get_token(callback, isRetry) {
+  static kw_get_token(callback, isRetry, failure = () => {}, options = {}) {
     let isRetryValue = true;
     if (isRetry === undefined) {
       isRetryValue = false;
@@ -252,48 +252,71 @@ class kuwo {
           if (isRetryValue) {
             return callback('');
           }
-          return axios.get('https://www.kuwo.cn/').then(() => {
-            this.kw_get_token(callback, true);
-          });
+          return RequestTask.http(options)
+            .get('https://www.kuwo.cn/')
+            .then(() => {
+              this.kw_get_token(callback, true, failure, options);
+            })
+            .catch(failure);
         }
         return callback(cookie.value);
       }
     );
   }
 
-  static kw_cookie_get(url, callback) {
+  static kw_cookie_get(
+    url,
+    callback,
+    failure = () => callback(),
+    options = {}
+  ) {
     const name = 'Hm_Iuvt_cdb524f42f23cer9b268564v7y735ewrq2324';
-    this.kw_get_token((token) => {
-      // All Kuwo API calls that require the token pass through this helper so
-      // token refresh and retry behavior stays consistent.
-      axios
-        .get(url, {
-          headers: {
-            Secret: h(token, name),
-          },
-        })
-        .then((response) => {
-          if (response.data.success === false) {
-            // token expire, refetch token and start get url
-            this.kw_get_token((token2) => {
-              axios
-                .get(url, {
-                  headers: {
-                    Secret: h(token2, name),
-                  },
-                })
-                .then((res) => {
-                  callback(res);
-                });
-            });
-          } else {
-            callback(response);
-          }
-        })
-        .catch(() => {
-          callback();
-        });
-    });
+    const request = RequestTask.http(options);
+    this.kw_get_token(
+      (token) => {
+        // All Kuwo API calls that require the token pass through this helper so
+        // token refresh and retry behavior stays consistent.
+        request
+          .get(url, {
+            headers: {
+              Secret: h(token, name),
+            },
+          })
+          .then((response) => {
+            if (
+              response.data.success === false &&
+              /token|csrf|验证/i.test(
+                response.data.message || response.data.msg || ''
+              )
+            ) {
+              // token expire, refetch token and start get url
+              this.kw_get_token(
+                (token2) => {
+                  request
+                    .get(url, {
+                      headers: {
+                        Secret: h(token2, name),
+                      },
+                    })
+                    .then((res) => {
+                      callback(res);
+                    })
+                    .catch(failure);
+                },
+                false,
+                failure,
+                options
+              );
+            } else {
+              callback(response);
+            }
+          })
+          .catch(failure);
+      },
+      false,
+      failure,
+      options
+    );
   }
 
   static kw_render_tracks(url, page, callback) {
@@ -321,9 +344,8 @@ class kuwo {
     });
   }
 
-  static search(url) {
-    // eslint-disable-line no-unused-vars
-    const keyword = getParameterByName('keywords', url);
+  static search(url, options = {}) {
+    const keyword = encodeURIComponent(getParameterByName('keywords', url));
     const curpage = getParameterByName('curpage', url);
     const pn = parseInt(curpage) - 1;
     const searchType = getParameterByName('type', url);
@@ -343,63 +365,76 @@ class kuwo {
     }
 
     return {
-      success: (fn) => {
-        this.kw_cookie_get(target_url, (response) => {
-          let result = [];
-          let total = 0;
-          if (response === undefined) {
+      success: (fn, failure = () => {}) => {
+        this.kw_cookie_get(
+          target_url,
+          (response) => {
+            let result = [];
+            let total = 0;
+            if (response === undefined) {
+              return fn({
+                result,
+                total,
+                type: searchType,
+              });
+            }
+            if (searchType === '0' && response.data.abslist !== undefined) {
+              result = response.data.abslist.map((item) =>
+                this.kw_convert_song3(item)
+              );
+              total = parseInt(response.data.HIT);
+            } else if (searchType === '1' && response.data.data !== undefined) {
+              result = response.data.data.list.map((item) => ({
+                id: `kwplaylist_${item.id}`,
+                title: this.html_decode(item.name),
+                source: 'kuwo',
+                source_url: `https://www.kuwo.cn/playlist_detail/${item.id}`,
+                img_url: item.img,
+                url: `kwplaylist_${item.id}`,
+                author: this.html_decode(item.uname),
+                count: item.total,
+              }));
+              total = response.data.data.total;
+            }
             return fn({
               result,
               total,
               type: searchType,
             });
-          }
-          if (searchType === '0' && response.data.abslist !== undefined) {
-            result = response.data.abslist.map((item) =>
-              this.kw_convert_song3(item)
-            );
-            total = parseInt(response.data.HIT);
-          } else if (searchType === '1' && response.data.data !== undefined) {
-            result = response.data.data.list.map((item) => ({
-              id: `kwplaylist_${item.id}`,
-              title: this.html_decode(item.name),
-              source: 'kuwo',
-              source_url: `https://www.kuwo.cn/playlist_detail/${item.id}`,
-              img_url: item.img,
-              url: `kwplaylist_${item.id}`,
-              author: this.html_decode(item.uname),
-              count: item.total,
-            }));
-            total = response.data.data.total;
-          }
-          return fn({
-            result,
-            total,
-            type: searchType,
-          });
-        });
+          },
+          failure,
+          options
+        );
       },
     };
   }
 
-  // eslint-disable-next-line no-unused-vars
-  static bootstrap_track(track, success, failure) {
+  static bootstrap_track(track, success, failure, options = {}) {
     const sound = {};
     const song_id = track.id.slice('kwtrack_'.length);
 
     const target_url = `https://www.kuwo.cn/api/v1/www/music/playUrl?mid=${song_id}&type=music&httpsStatus=1&reqId=&plat=web_www&from=`;
-    this.kw_cookie_get(target_url, (response) => {
-      const { data } = response;
+    this.kw_cookie_get(
+      target_url,
+      (response) => {
+        const data = response?.data;
 
-      if (data && data.data && data.data.url) {
-        sound.url = data.data.url;
-        sound.platform = 'kuwo';
+        if (data && data.data && data.data.url) {
+          sound.url = data.data.url;
+          sound.platform = 'kuwo';
 
-        success(sound);
-      } else {
-        failure(sound);
-      }
-    });
+          success(sound);
+        } else {
+          const message = data?.message || data?.msg || '';
+          let code = 'RESOURCE_UNAVAILABLE';
+          if (/付费|购买/.test(message)) code = 'PAYMENT_REQUIRED';
+          else if (/登录/.test(message)) code = 'AUTH_REQUIRED';
+          failure({ code, businessCode: data?.code });
+        }
+      },
+      failure,
+      options
+    );
   }
 
   static kw_get_lrc(arr) {
@@ -465,29 +500,30 @@ class kuwo {
   }
 
   static lyric(url) {
-    // eslint-disable-line no-unused-vars
     const track_id = getParameterByName('lyric_url', url);
     const target_url = `https://m.kuwo.cn/newh5/singles/songinfoandlrc?musicId=${track_id}`;
 
     return {
-      success: (fn) => {
-        axios.get(target_url).then((response) => {
-          let { data } = response;
-          data =
-            data.status === 200
-              ? this.kw_generate_translation(data.data.lrclist)
-              : {};
-          return fn({
-            lyric: data.lrc || '',
-            tlyric: data.tlrc || '',
-          });
-        });
+      success: (fn, failure = () => {}) => {
+        axios
+          .get(target_url)
+          .then((response) => {
+            let { data } = response;
+            data =
+              data.status === 200
+                ? this.kw_generate_translation(data.data.lrclist)
+                : {};
+            return fn({
+              lyric: data.lrc || '',
+              tlyric: data.tlrc || '',
+            });
+          })
+          .catch(failure);
       },
     };
   }
 
   static kw_artist(url) {
-    // eslint-disable-line no-unused-vars
     const artist_id = getParameterByName('list_id', url).split('_').pop();
     return {
       success: (fn) => {
@@ -533,46 +569,48 @@ class kuwo {
   }
 
   static kw_album(url) {
-    // eslint-disable-line no-unused-vars
     const album_id = getParameterByName('list_id', url).split('_').pop();
     return {
-      success: (fn) => {
+      success: (fn, failure = () => {}) => {
         const target_url =
           'https://search.kuwo.cn/r.s?pn=0&rn=0&stype=albuminfo' +
           `&albumid=${album_id}&alflac=1&pcmp4=1&encoding=utf8` +
           '&vipver=MUSIC_8.7.7.0_W4';
-        axios.get(target_url).then((response) => {
-          let { data } = response;
-          data = JSON.parse(this.fix_json(data));
+        axios
+          .get(target_url)
+          .then((response) => {
+            let { data } = response;
+            data = JSON.parse(this.fix_json(data));
 
-          const info = {
-            cover_img_url: data.hts_img.replace('/120/', '/400/'),
-            title: this.html_decode(data.name),
-            id: `kwalbum_${data.albumid}`,
-            source_url: `https://www.kuwo.cn/album_detail/${data.albumid}`,
-          };
-          // Get songs
-          const total = data.songnum;
-          const page = Math.ceil(total / 100);
-          const page_array = Array.from({ length: page }, (v, k) => k + 1);
-          async.concat(
-            page_array,
-            (item, callback) => this.kw_render_tracks(url, item, callback),
-            (err, tracks) => {
-              fn({
-                tracks,
-                info,
-              });
-            }
-          );
-          /*
+            const info = {
+              cover_img_url: data.hts_img.replace('/120/', '/400/'),
+              title: this.html_decode(data.name),
+              id: `kwalbum_${data.albumid}`,
+              source_url: `https://www.kuwo.cn/album_detail/${data.albumid}`,
+            };
+            // Get songs
+            const total = data.songnum;
+            const page = Math.ceil(total / 100);
+            const page_array = Array.from({ length: page }, (v, k) => k + 1);
+            async.concat(
+              page_array,
+              (item, callback) => this.kw_render_tracks(url, item, callback),
+              (err, tracks) => {
+                fn({
+                  tracks,
+                  info,
+                });
+              }
+            );
+            /*
           async_process_list(data.musiclist, kw_render_album_result_item, [info],
             (err, tracks) => fn({
               tracks,
               info,
             }));
           */
-        });
+          })
+          .catch(failure);
       },
     };
   }
@@ -642,28 +680,30 @@ class kuwo {
     id =华语:37,
     */
     return {
-      success: (fn) => {
-        axios.get(target_url).then((response) => {
-          const { data } = response.data;
-          if (!data) {
-            return fn([]);
-          }
-          const result = data.data.map((item) => ({
-            cover_img_url: item.img,
-            title: item.name,
-            id: `kwplaylist_${item.id}`,
-            source_url: `https://www.kuwo.cn/playlist_detail/${item.id}`,
-          }));
-          return fn({
-            result,
-          });
-        });
+      success: (fn, failure = () => {}) => {
+        axios
+          .get(target_url)
+          .then((response) => {
+            const { data } = response.data;
+            if (!data) {
+              return fn([]);
+            }
+            const result = data.data.map((item) => ({
+              cover_img_url: item.img,
+              title: item.name,
+              id: `kwplaylist_${item.id}`,
+              source_url: `https://www.kuwo.cn/playlist_detail/${item.id}`,
+            }));
+            return fn({
+              result,
+            });
+          })
+          .catch(failure);
       },
     };
   }
 
   static kw_get_playlist(url) {
-    // eslint-disable-line no-unused-vars
     const list_id = getParameterByName('list_id', url).split('_').pop();
     const target_url =
       'https://nplserver.kuwo.cn/pl.svc?' +
@@ -671,37 +711,40 @@ class kuwo {
       `&pid=${list_id}&vipver=MUSIC_9.0.2.0_W1&newver=1`;
     // https://www.kuwo.cn/api/www/playlist/playListInfo?pid=3134372426&pn=1&rn=30
     return {
-      success: (fn) => {
-        axios.get(target_url).then((response) => {
-          const { data } = response;
+      success: (fn, failure = () => {}) => {
+        axios
+          .get(target_url)
+          .then((response) => {
+            const { data } = response;
 
-          const info = {
-            cover_img_url: data.pic.replace('_150.jpg', '_400.jpg'),
-            title: data.title,
-            id: `kwplaylist_${data.id}`,
-            source_url: `https://www.kuwo.cn/playlist_detail/${data.id}`,
-          };
-          const { total } = data;
-          const page = Math.ceil(total / 100);
-          const page_array = Array.from({ length: page }, (v, k) => k + 1);
-          async.concat(
-            page_array,
-            (item, callback) => this.kw_render_tracks(url, item, callback),
-            (err, tracks) => {
-              fn({
-                tracks,
-                info,
-              });
-            }
-          );
-          /*
+            const info = {
+              cover_img_url: data.pic.replace('_150.jpg', '_400.jpg'),
+              title: data.title,
+              id: `kwplaylist_${data.id}`,
+              source_url: `https://www.kuwo.cn/playlist_detail/${data.id}`,
+            };
+            const { total } = data;
+            const page = Math.ceil(total / 100);
+            const page_array = Array.from({ length: page }, (v, k) => k + 1);
+            async.concat(
+              page_array,
+              (item, callback) => this.kw_render_tracks(url, item, callback),
+              (err, tracks) => {
+                fn({
+                  tracks,
+                  info,
+                });
+              }
+            );
+            /*
           async_process_list(data.musiclist, kw_render_playlist_result_item, [],
             (err, tracks) => fn({
               tracks,
               info,
             }));
           */
-        });
+          })
+          .catch(failure);
       },
     };
   }
@@ -731,7 +774,6 @@ class kuwo {
     } else if (url.search('kuwo.cn/album_detail') !== -1) {
       const match = /kuwo.cn\/album_detail\/([0-9]+)/.exec(url);
       if (match) {
-        // eslint-disable-next-line prefer-destructuring
         id = match[1];
         result = {
           type: 'playlist',

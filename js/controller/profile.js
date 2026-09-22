@@ -1,5 +1,3 @@
-/* eslint-disable import/no-unresolved */
-/* eslint-disable global-require */
 /* eslint-disable no-undef */
 /* eslint-disable no-param-reassign */
 /* global angular i18next sourceList platformSourceList */
@@ -7,7 +5,7 @@ angular.module('listenone').controller('ProfileController', [
   '$scope',
   ($scope) => {
     let defaultLang = 'zh-CN';
-    const supportLangs = ['zh-CN', 'en-US'];
+    const supportLangs = ['zh-CN', 'zh-TC', 'en-US', 'fr-FR', 'ko-KR', 'pt-BR'];
     if (supportLangs.indexOf(navigator.language) !== -1) {
       defaultLang = navigator.language;
     }
@@ -45,11 +43,11 @@ angular.module('listenone').controller('ProfileController', [
       $scope.proxyRules = `${$scope.proxyProtocol}://${host}:${port}`;
       if (isElectron()) {
         const message = 'update_proxy_config';
-        const { ipcRenderer } = require('electron');
+
         if (mode === 'system' || mode === 'direct') {
-          ipcRenderer.send('control', message, { mode });
+          window.listen1Desktop.control(message, { mode });
         } else {
-          ipcRenderer.send('control', message, {
+          window.listen1Desktop.control(message, {
             proxyRules: $scope.proxyRules,
           });
         }
@@ -60,46 +58,59 @@ angular.module('listenone').controller('ProfileController', [
       if (isElectron()) {
         // get proxy config from main process
         const message = 'get_proxy_config';
-        const { ipcRenderer } = require('electron');
-        ipcRenderer.send('control', message);
+
+        window.listen1Desktop.control(message);
       }
     };
 
     $scope.initProfile = () => {
-      const url = `https://api.github.com/repos/listen1/listen1_chrome_extension/releases/latest`;
-      axios.get(url).then((response) => {
-        $scope.lastestVersion = response.data.tag_name;
-      });
+      const repository = isElectron()
+        ? 'listen1_desktop'
+        : 'listen1_chrome_extension';
+      const url = `https://api.github.com/repos/listen1/${repository}/releases/latest`;
+      axios
+        .get(url)
+        .then((response) => {
+          $scope.lastestVersion = response.data.tag_name;
+        })
+        .catch(() => {
+          $scope.lastestVersion = '';
+        });
 
       $scope.getProxyConfig();
     };
 
     if (isElectron()) {
-      const { ipcRenderer } = require('electron');
+      $scope.$on(
+        '$destroy',
+        window.listen1Desktop.on('proxyConfig', (config) => {
+          // parse config
+          if (config.mode === 'system' || config.mode === 'direct') {
+            [$scope.proxyMode] = $scope.proxyModes.filter(
+              (i) => i.name === config.mode
+            );
+            $scope.proxyModeInput = $scope.proxyMode;
+            $scope.proxyRules = '';
+          } else {
+            [$scope.proxyMode] = $scope.proxyModes.filter(
+              (i) => i.name === 'custom'
+            );
+            $scope.proxyModeInput = $scope.proxyMode;
+            $scope.proxyRules = config.proxyRules;
+            // rules = 'socks5://127.0.0.1:1080'
+            const match = /^(\w+):\/\/([^/]+):(\d+)$/.exec(
+              config.proxyRules || ''
+            );
+            if (!match) return;
+            const [, protocol, host, port] = match;
 
-      ipcRenderer.on('proxyConfig', (event, config) => {
-        // parse config
-        if (config.mode === 'system' || config.mode === 'direct') {
-          [$scope.proxyMode] = $scope.proxyModes.filter(
-            (i) => i.name === config.mode
-          );
-          $scope.proxyModeInput = $scope.proxyMode;
-          $scope.proxyRules = '';
-        } else {
-          [$scope.proxyMode] = $scope.proxyModes.filter(
-            (i) => i.name === 'custom'
-          );
-          $scope.proxyModeInput = $scope.proxyMode;
-          $scope.proxyRules = config.proxyRules;
-          // rules = 'socks5://127.0.0.1:1080'
-          const match = /(\w+):\/\/([\d.]+):(\d+)/.exec(config.proxyRules);
-          const [, protocol, host, port] = match;
-
-          $scope.proxyProtocol = protocol;
-          document.getElementById('proxy-rules-host').value = host;
-          document.getElementById('proxy-rules-port').value = port;
-        }
-      });
+            $scope.proxyProtocol = protocol;
+            document.getElementById('proxy-rules-host').value = host;
+            document.getElementById('proxy-rules-port').value = port;
+          }
+          $scope.$evalAsync();
+        })
+      );
     }
     $scope.setLang = (langKey) => {
       // You can change the language during runtime

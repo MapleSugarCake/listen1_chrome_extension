@@ -1,0 +1,13 @@
+{
+  "js/vendor/forge_listen1_fork.min.js": {
+    "decision": "retain",
+    "version": "unversioned Listen1 fork at c1bfbc2a60a03de1c6e37474f6ce6ca6322afd02",
+    "source": "https://github.com/MapleSugarCake/listen1_chrome_extension/blob/c1bfbc2a60a03de1c6e37474f6ce6ca6322afd02/js/vendor/forge_listen1_fork.min.js",
+    "upstream": "https://github.com/digitalbazaar/forge",
+    "comparisonVersion": "1.4.0",
+    "sha256": "4f9df45025ab410c6897b9a58a278ee77e051dc7109a57a400e206a45876d50e",
+    "reason": "Provider crypto vectors match node-forge 1.4.0, but the custom build source and all behavior cannot be reconstructed from the minified artifact. Retain rather than assert complete equivalence.",
+    "licenseFile": "vendor/licenses/node-forge-upstream.txt",
+    "licenseNote": "The supplied license is the upstream BSD/GPL dual license. This is not a claim that the custom fork's provenance has been fully reconstructed. Existing project licensing and the original artifact are preserved."
+  }
+}

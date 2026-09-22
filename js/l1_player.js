@@ -68,7 +68,6 @@
     },
     setLoopMode(input) {
       getPlayerAsync(mode, (player) => {
-        // eslint-disable-next-line no-param-reassign
         player.loop_mode = input;
       });
     },
@@ -90,7 +89,6 @@
     },
     setVolume(per) {
       getPlayerAsync(mode, (player) => {
-        // eslint-disable-next-line no-param-reassign
         player.volume = per / 100;
       });
     },
@@ -141,11 +139,14 @@
           if (!player.playlist.length) {
             const localCurrentPlaying =
               localStorage.getObject('current-playing');
-            if (localCurrentPlaying !== null) {
-              localCurrentPlaying.forEach((i) => {
+            if (Array.isArray(localCurrentPlaying)) {
+              const tracks = localCurrentPlaying.filter(
+                (track) => track && typeof track.id === 'string'
+              );
+              tracks.forEach((i) => {
                 i.disabled = false;
               });
-              player.setNewPlaylist(localCurrentPlaying);
+              player.setNewPlaylist(tracks);
             }
           }
 

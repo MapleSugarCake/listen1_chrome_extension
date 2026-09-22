@@ -61,7 +61,7 @@ class taihe {
       });
   }
 
-  static search(url) {
+  static search(url, options = {}) {
     const keyword = getParameterByName('keywords', url);
     const curpage = getParameterByName('curpage', url);
     const searchType = getParameterByName('type', url);
@@ -76,7 +76,7 @@ class taihe {
       };
     }
     return {
-      success: (fn) => {
+      success: (fn, failure = () => {}) => {
         axiosTH
           .get('/search', {
             params: {
@@ -94,13 +94,7 @@ class taihe {
               type: searchType,
             });
           })
-          .catch(() =>
-            fn({
-              result: [],
-              total: 0,
-              type: searchType,
-            })
-          );
+          .catch(failure);
       },
     };
   }
@@ -109,7 +103,7 @@ class taihe {
     const list_id = getParameterByName('list_id', url).split('_').pop();
 
     return {
-      success: (fn) => {
+      success: (fn, failure = () => {}) => {
         axiosTH
           .get('/tracklist/info', {
             params: {
@@ -139,14 +133,15 @@ class taihe {
                 });
               }
             );
-          });
+          })
+          .catch(failure);
       },
     };
   }
 
   static th_artist(url) {
     return {
-      success: (fn) => {
+      success: (fn, failure = () => {}) => {
         const artist_id = getParameterByName('list_id', url).split('_').pop();
         axiosTH
           .get('/artist/info', {
@@ -175,13 +170,15 @@ class taihe {
                   tracks,
                   info,
                 });
-              });
-          });
+              })
+              .catch(failure);
+          })
+          .catch(failure);
       },
     };
   }
 
-  static bootstrap_track(track, success, failure) {
+  static bootstrap_track(track, success, failure, options = {}) {
     const sound = {};
     const song_id = track.id.slice('thtrack_'.length);
     axiosTH
@@ -201,21 +198,24 @@ class taihe {
         } else {
           failure(sound);
         }
-      });
+      })
+      .catch(failure);
   }
 
   static lyric(url) {
-    // eslint-disable-line no-unused-vars
     const lyric_url = getParameterByName('lyric_url', url);
 
     return {
-      success: (fn) => {
+      success: (fn, failure = () => {}) => {
         if (lyric_url) {
-          axios.get(lyric_url).then((response) =>
-            fn({
-              lyric: response.data,
-            })
-          );
+          axios
+            .get(lyric_url)
+            .then((response) =>
+              fn({
+                lyric: response.data,
+              })
+            )
+            .catch(failure);
         } else {
           const track_id = getParameterByName('track_id', url).split('_').pop();
           axiosTH
@@ -225,12 +225,16 @@ class taihe {
               },
             })
             .then((response) => {
-              axios.get(response.data.data.lyric).then((res) =>
-                fn({
-                  lyric: res.data,
-                })
-              );
-            });
+              axios
+                .get(response.data.data.lyric)
+                .then((res) =>
+                  fn({
+                    lyric: res.data,
+                  })
+                )
+                .catch(failure);
+            })
+            .catch(failure);
         }
       },
     };
@@ -238,7 +242,7 @@ class taihe {
 
   static th_album(url) {
     return {
-      success: (fn) => {
+      success: (fn, failure = () => {}) => {
         const album_id = getParameterByName('list_id', url).split('_').pop();
 
         axiosTH
@@ -274,7 +278,8 @@ class taihe {
               tracks,
               info,
             });
-          });
+          })
+          .catch(failure);
       },
     };
   }
@@ -283,7 +288,7 @@ class taihe {
     const offset = Number(getParameterByName('offset', url));
     const subCate = getParameterByName('filter_id', url);
     return {
-      success: (fn) => {
+      success: (fn, failure = () => {}) => {
         axiosTH
           .get('/tracklist/list', {
             params: {
@@ -304,7 +309,8 @@ class taihe {
             return fn({
               result,
             });
-          });
+          })
+          .catch(failure);
       },
     };
   }
@@ -358,19 +364,22 @@ class taihe {
 
   static get_playlist_filters() {
     return {
-      success: (fn) => {
-        axiosTH.get('/tracklist/category').then((res) =>
-          fn({
-            recommend: [{ id: '', name: '推荐歌单' }],
-            all: res.data.data.map((sub) => ({
-              category: sub.categoryName,
-              filters: sub.subCate.map((i) => ({
-                id: i.id,
-                name: i.categoryName,
+      success: (fn, failure = () => {}) => {
+        axiosTH
+          .get('/tracklist/category')
+          .then((res) =>
+            fn({
+              recommend: [{ id: '', name: '推荐歌单' }],
+              all: res.data.data.map((sub) => ({
+                category: sub.categoryName,
+                filters: sub.subCate.map((i) => ({
+                  id: i.id,
+                  name: i.categoryName,
+                })),
               })),
-            })),
-          })
-        );
+            })
+          )
+          .catch(failure);
       },
     };
   }

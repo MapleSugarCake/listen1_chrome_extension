@@ -1,3 +1,4 @@
+/* global RequestTask */
 let wbi_key = null;
 /* global getParameterByName */
 // eslint-disable-next-line no-unused-vars
@@ -149,19 +150,22 @@ class bilibili {
     const page = offset / 20 + 1;
     const target_url = `https://www.bilibili.com/audio/music-service-c/web/menu/hit?ps=20&pn=${page}`;
     return {
-      success: (fn) => {
-        axios.get(target_url).then((response) => {
-          const { data } = response.data.data;
-          const result = data.map((item) => ({
-            cover_img_url: item.cover,
-            title: item.title,
-            id: `biplaylist_${item.menuId}`,
-            source_url: `https://www.bilibili.com/audio/am${item.menuId}`,
-          }));
-          return fn({
-            result,
-          });
-        });
+      success: (fn, failure = () => {}) => {
+        axios
+          .get(target_url)
+          .then((response) => {
+            const { data } = response.data.data;
+            const result = data.map((item) => ({
+              cover_img_url: item.cover,
+              title: item.title,
+              id: `biplaylist_${item.menuId}`,
+              source_url: `https://www.bilibili.com/audio/am${item.menuId}`,
+            }));
+            return fn({
+              result,
+            });
+          })
+          .catch(failure);
       },
     };
   }
@@ -170,26 +174,32 @@ class bilibili {
     const list_id = getParameterByName('list_id', url).split('_').pop();
     const target_url = `https://www.bilibili.com/audio/music-service-c/web/menu/info?sid=${list_id}`;
     return {
-      success: (fn) => {
-        axios.get(target_url).then((response) => {
-          const { data } = response.data;
-          const info = {
-            cover_img_url: data.cover,
-            title: data.title,
-            id: `biplaylist_${list_id}`,
-            source_url: `https://www.bilibili.com/audio/am${list_id}`,
-          };
-          const target = `https://www.bilibili.com/audio/music-service-c/web/song/of-menu?pn=1&ps=100&sid=${list_id}`;
-          axios.get(target).then((res) => {
-            const tracks = res.data.data.data.map((item) =>
-              this.bi_convert_song(item)
-            );
-            return fn({
-              info,
-              tracks,
-            });
-          });
-        });
+      success: (fn, failure = () => {}) => {
+        axios
+          .get(target_url)
+          .then((response) => {
+            const { data } = response.data;
+            const info = {
+              cover_img_url: data.cover,
+              title: data.title,
+              id: `biplaylist_${list_id}`,
+              source_url: `https://www.bilibili.com/audio/am${list_id}`,
+            };
+            const target = `https://www.bilibili.com/audio/music-service-c/web/song/of-menu?pn=1&ps=100&sid=${list_id}`;
+            axios
+              .get(target)
+              .then((res) => {
+                const tracks = res.data.data.data.map((item) =>
+                  this.bi_convert_song(item)
+                );
+                return fn({
+                  info,
+                  tracks,
+                });
+              })
+              .catch(failure);
+          })
+          .catch(failure);
       },
     };
   }
@@ -220,25 +230,28 @@ class bilibili {
   static bi_track(url) {
     const track_id = getParameterByName('list_id', url).split('_').pop();
     return {
-      success: (fn) => {
+      success: (fn, failure = () => {}) => {
         const target_url = `https://api.bilibili.com/x/web-interface/view?bvid=${track_id}`;
-        axios.get(target_url).then((response) => {
-          const info = {
-            cover_img_url: response.data.data.pic,
-            title: response.data.data.title,
-            id: `bitrack_v_${track_id}`,
-            source_url: `https://www.bilibili.com/${track_id}`,
-          };
-          const author = response.data.data.owner;
-          const default_img = response.data.data.pic;
-          const tracks = response.data.data.pages.map((item) =>
-            this.bi_convert_song3(item, track_id, author, default_img)
-          );
-          return fn({
-            tracks,
-            info,
-          });
-        });
+        axios
+          .get(target_url)
+          .then((response) => {
+            const info = {
+              cover_img_url: response.data.data.pic,
+              title: response.data.data.title,
+              id: `bitrack_v_${track_id}`,
+              source_url: `https://www.bilibili.com/${track_id}`,
+            };
+            const author = response.data.data.owner;
+            const default_img = response.data.data.pic;
+            const tracks = response.data.data.pages.map((item) =>
+              this.bi_convert_song3(item, track_id, author, default_img)
+            );
+            return fn({
+              tracks,
+              info,
+            });
+          })
+          .catch(failure);
       },
     };
   }
@@ -266,7 +279,7 @@ class bilibili {
     const artist_id = getParameterByName('list_id', url).split('_').pop();
 
     return {
-      success: (fn) => {
+      success: (fn, failure = () => {}) => {
         let target_url;
         bilibili
           .wrap_wbi_request('https://api.bilibili.com/x/space/wbi/acc/info', {
@@ -302,15 +315,18 @@ class bilibili {
                 });
             }
             target_url = `https://api.bilibili.com/audio/music-service-c/web/song/upper?pn=1&ps=0&order=2&uid=${artist_id}`;
-            return axios.get(target_url).then((res) => {
-              const tracks = res.data.data.data.map((item) =>
-                this.bi_convert_song(item)
-              );
-              return fn({
-                tracks,
-                info,
-              });
-            });
+            return axios
+              .get(target_url)
+              .then((res) => {
+                const tracks = res.data.data.data.map((item) =>
+                  this.bi_convert_song(item)
+                );
+                return fn({
+                  tracks,
+                  info,
+                });
+              })
+              .catch(failure);
           });
       },
     };
@@ -333,7 +349,8 @@ class bilibili {
     };
   }
 
-  static bootstrap_track(track, success, failure) {
+  static bootstrap_track(track, success, failure, options = {}) {
+    const request = RequestTask.http(options);
     const trackId = track.id;
     if (trackId.startsWith('bitrack_v_')) {
       const sound = {};
@@ -344,43 +361,53 @@ class bilibili {
         bvid = trackIdCheck[0].slice('bitrack_v_'.length);
       }
       const target_url = `https://api.bilibili.com/x/web-interface/view?bvid=${bvid}`;
-      return axios.get(target_url).then((response) => {
-        let { cid } = response.data.data.pages[0];
-        if (trackIdCheck.length > 1) {
-          [, cid] = trackIdCheck;
-        }
-        const target_url2 = `http://api.bilibili.com/x/player/playurl?fnval=16&bvid=${bvid}&cid=${cid}`;
-        axios.get(target_url2).then((response2) => {
-          if (response2.data.data.dash.audio.length > 0) {
-            const url = response2.data.data.dash.audio[0].baseUrl;
-            sound.url = url;
-            sound.platform = 'bilibili';
-            success(sound);
-          } else {
-            failure(sound);
+      return request
+        .get(target_url)
+        .then((response) => {
+          let { cid } = response.data.data.pages[0];
+          if (trackIdCheck.length > 1) {
+            [, cid] = trackIdCheck;
           }
-        });
-      });
+          const target_url2 = `http://api.bilibili.com/x/player/playurl?fnval=16&bvid=${bvid}&cid=${cid}`;
+          request
+            .get(target_url2)
+            .then((response2) => {
+              if (response2.data.data.dash.audio.length > 0) {
+                const url = response2.data.data.dash.audio[0].baseUrl;
+                sound.url = url;
+                sound.platform = 'bilibili';
+                success(sound);
+              } else {
+                failure(sound);
+              }
+            })
+            .catch(failure);
+        })
+        .catch(failure);
     }
     const sound = {};
     const song_id = track.id.slice('bitrack_'.length);
     const target_url = `https://www.bilibili.com/audio/music-service-c/web/url?sid=${song_id}`;
-    return axios.get(target_url).then((response) => {
-      const { data } = response;
-      if (data.code === 0) {
-        [sound.url] = data.data.cdns;
-        sound.platform = 'bilibili';
+    return request
+      .get(target_url)
+      .then((response) => {
+        const { data } = response;
+        if (data.code === 0) {
+          [sound.url] = data.data.cdns;
+          sound.platform = 'bilibili';
 
-        success(sound);
-      } else {
-        failure(sound);
-      }
-    });
+          success(sound);
+        } else {
+          failure(sound);
+        }
+      })
+      .catch(failure);
   }
 
-  static search(url) {
+  static search(url, options = {}) {
+    const request = RequestTask.http(options);
     return {
-      success: (fn) => {
+      success: (fn, failure = () => {}) => {
         const keyword = getParameterByName('keywords', url);
         const curpage = getParameterByName('curpage', url);
 
@@ -402,7 +429,7 @@ class bilibili {
             sameSite: 'no_restriction',
           },
           () => {
-            axios
+            request
               .get(target_url, { withCredentials: true })
               .then((response) => {
                 const result = response.data.data.result.map((song) =>
@@ -412,8 +439,14 @@ class bilibili {
                 return fn({
                   result,
                   total,
+                  pageSize:
+                    response.data.data.pagesize ||
+                    response.data.data.page_size ||
+                    result.length ||
+                    42,
                 });
-              });
+              })
+              .catch(failure);
           }
         );
       },

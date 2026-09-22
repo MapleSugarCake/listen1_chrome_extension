@@ -1,4 +1,4 @@
-/* global async LRUCache setPrototypeOfLocalStorage getLocalStorageValue */
+/* global RequestTask LRUCache setPrototypeOfLocalStorage getLocalStorageValue */
 /* global netease xiami qq kugou kuwo bilibili migu taihe localmusic myplaylist */
 
 const PROVIDERS = [
@@ -88,10 +88,6 @@ function getAllProviders() {
   return PROVIDERS.filter((i) => !i.hidden).map((i) => i.instance);
 }
 
-function getAllSearchProviders() {
-  return PROVIDERS.filter((i) => i.searchable).map((i) => i.instance);
-}
-
 function getProviderNameByItemId(itemId) {
   const prefix = itemId.slice(0, 2);
   return (PROVIDERS.find((i) => i.id === prefix) || {}).name;
@@ -105,7 +101,7 @@ function getProviderByItemId(itemId) {
 /* cache for all playlist request except myplaylist and localmusic */
 const playlistCache = new LRUCache({
   max: 100,
-  maxAge: 60 * 60 * 1000, // 1 hour cache expire
+  ttl: 60 * 60 * 1000,
 });
 
 function queryStringify(options) {
@@ -113,42 +109,13 @@ function queryStringify(options) {
   return new URLSearchParams(query).toString();
 }
 
-function mergePlatformSearchResults(platformResultArray) {
-  if (!platformResultArray.length) {
-    return {
-      result: [],
-      total: 0,
-      type: '',
-    };
-  }
-
-  const result = {
-    result: [],
-    total: 1000,
-    type: platformResultArray[0].type,
-  };
-  const maxLength = Math.max(
-    ...platformResultArray.map((platformResult) => platformResult.result.length)
-  );
-
-  for (let index = 0; index < maxLength; index += 1) {
-    platformResultArray.forEach((platformResult) => {
-      if (index < platformResult.result.length) {
-        result.result.push(platformResult.result[index]);
-      }
-    });
-  }
-
-  return result;
-}
-
 // Provider parse_url functions use the legacy `{ success(fn) }` contract.
 // Promisifying them makes it possible to race all providers without changing
 // the public MediaService API.
 function providerParseUrl(provider, url) {
-  return new Promise((resolve) => {
-    provider.parse_url(url).success(resolve);
-  });
+  return RequestTask.legacy(() => provider.parse_url(url), {
+    stage: 'parseURL',
+  }).promise;
 }
 
 function resolveFirstDefined(promises) {
@@ -202,33 +169,6 @@ function isSameBootstrapCandidate(track, searchTrack) {
   );
 }
 
-function bootstrapTrackFromProvider(source, track) {
-  return new Promise((resolve) => {
-    if (track.source === source) {
-      resolve(undefined);
-      return;
-    }
-
-    const provider = getProviderByName(source);
-    const url = `/search?${queryStringify(
-      buildBootstrapTrackSearchOptions(track)
-    )}`;
-
-    provider.search(url).success((data) => {
-      const candidate = data.result.find((searchTrack) =>
-        isSameBootstrapCandidate(track, searchTrack)
-      );
-
-      if (!candidate) {
-        resolve(undefined);
-        return;
-      }
-
-      provider.bootstrap_track(candidate, resolve, () => resolve(undefined));
-    });
-  });
-}
-
 setPrototypeOfLocalStorage();
 
 /**
@@ -236,29 +176,102 @@ setPrototypeOfLocalStorage();
  * legacy chainable shape `{ success(fn) }`; keeping that shape here avoids
  * touching older Angular controller code while provider internals evolve.
  */
-// eslint-disable-next-line no-unused-vars
+
 const MediaService = {
   getLoginProviders() {
     return PROVIDERS.filter((i) => !i.hidden && i.support_login);
   },
   search(source, options) {
     const url = `/search?${queryStringify(options)}`;
-    if (source === 'allmusic') {
-      // search all platform and merge result
-      const callbackArray = getAllSearchProviders().map((p) => (fn) => {
-        p.search(url).success((r) => {
-          fn(null, r);
-        });
-      });
-      return {
-        success: (fn) =>
-          async.parallel(callbackArray, (err, platformResultArray) => {
-            return fn(mergePlatformSearchResults(platformResultArray));
-          }),
-      };
+    if (source !== 'allmusic') {
+      return RequestTask.create(
+        async ({ resolve, reject, onCleanup }) => {
+          const provider = getProviderByName(source);
+          if (!provider?.search) {
+            reject({ code: 'UNSUPPORTED' });
+            return;
+          }
+          const task = RequestTask.legacy(
+            (context) => provider.search(url, context),
+            { source, stage: 'search' }
+          );
+          onCleanup(() => task.cancel());
+          const data = await task.promise;
+          if (!Array.isArray(data?.result)) {
+            reject({ code: 'INVALID_RESPONSE' });
+            return;
+          }
+          const pageSizes = {
+            qq: 50,
+            bilibili: 42,
+            kuwo: Number(options.type) === 1 ? 30 : 20,
+          };
+          const pageSize = data.pageSize || pageSizes[source] || 20;
+          const rawTotal = Number(data.total);
+          let total = Number.isFinite(rawTotal) ? rawTotal : null;
+          if (data.total == null || (source === 'migu' && rawTotal === 1000))
+            total = null;
+          resolve({
+            ...data,
+            type: options.type,
+            pageSize,
+            total,
+            hasMore:
+              data.hasMore ??
+              (total === null
+                ? data.result.length >= pageSize
+                : Number(options.curpage) * pageSize < total),
+          });
+        },
+        { source, stage: 'search', timeout: 15100 }
+      );
     }
-    const provider = getProviderByName(source);
-    return provider.search(url);
+    return RequestTask.create(
+      async ({ resolve, progress, onCleanup }) => {
+        const providers = PROVIDERS.filter((item) => item.searchable);
+        const result = [];
+        const seen = new Set();
+        const sources = {};
+        providers.forEach(({ name }) => {
+          sources[name] = { state: 'pending' };
+        });
+        const snapshot = () => ({
+          result: [...result],
+          total: null,
+          type: options.type,
+          sources: { ...sources },
+          hasMore: Object.values(sources).some((item) => item.hasMore),
+          pageSize: null,
+        });
+        progress(snapshot());
+        await Promise.all(
+          providers.map(async ({ name }) => {
+            const task = this.search(name, options);
+            onCleanup(() => task.cancel());
+            try {
+              const data = await task.promise;
+              data.result.forEach((track) => {
+                const key = `${track.source}:${track.id}`;
+                if (!seen.has(key)) {
+                  seen.add(key);
+                  result.push(track);
+                }
+              });
+              sources[name] = {
+                state: data.result.length ? 'success' : 'empty',
+                count: data.result.length,
+                hasMore: data.hasMore,
+              };
+            } catch (error) {
+              sources[name] = { state: 'error', code: error.code };
+            }
+            progress(snapshot());
+          })
+        );
+        resolve(snapshot());
+      },
+      { source, stage: 'search', timeout: 15500 }
+    );
   },
 
   showMyPlaylist() {
@@ -268,12 +281,18 @@ const MediaService = {
   showPlaylistArray(source, offset, filter_id) {
     const provider = getProviderByName(source);
     const url = `/show_playlist?${queryStringify({ offset, filter_id })}`;
-    return provider.show_playlist(url);
+    return RequestTask.legacy(() => provider.show_playlist(url), {
+      source,
+      stage: 'playlists',
+    });
   },
 
   getPlaylistFilters(source) {
     const provider = getProviderByName(source);
-    return provider.get_playlist_filters();
+    return RequestTask.legacy(() => provider.get_playlist_filters(), {
+      source,
+      stage: 'filters',
+    });
   },
 
   getLyric(track_id, album_id, lyric_url, tlyric_url) {
@@ -284,7 +303,10 @@ const MediaService = {
       lyric_url,
       tlyric_url,
     })}`;
-    return provider.lyric(url);
+    return RequestTask.legacy(() => provider.lyric(url), {
+      source: getProviderNameByItemId(track_id),
+      stage: 'lyric',
+    });
   },
 
   showFavPlaylist() {
@@ -307,19 +329,21 @@ const MediaService = {
     }
 
     if (hit) {
-      return {
-        success: (fn) => fn(hit),
-      };
+      return RequestTask.create(({ resolve }) => resolve(hit));
     }
-    return {
-      success: (fn) =>
-        provider.get_playlist(url).success((playlist) => {
-          if (provider !== myplaylist && provider !== localmusic) {
-            playlistCache.set(listId, playlist);
-          }
-          fn(playlist);
-        }),
-    };
+    const task = RequestTask.legacy(() => provider.get_playlist(url), {
+      source: getProviderNameByItemId(listId),
+      stage: 'playlist',
+    });
+    task.success((playlist) => {
+      if (
+        provider !== myplaylist &&
+        provider !== localmusic &&
+        Array.isArray(playlist?.tracks)
+      )
+        playlistCache.set(listId, playlist);
+    });
+    return task;
   },
 
   clonePlaylist(id, type) {
@@ -438,52 +462,116 @@ const MediaService = {
   },
 
   bootstrapTrack(track, playerSuccessCallback, playerFailCallback) {
-    const successCallback = playerSuccessCallback;
-    const sound = {};
-    function failureCallback() {
-      if (localStorage.getObject('enable_auto_choose_source') === false) {
-        playerFailCallback();
-        return;
-      }
-      // When the source provider cannot produce a playable URL, search mirror
-      // providers by exact title/artist and use the first working bootstrap.
-      const trackPlatform = getProviderNameByItemId(track.id);
-      const failover_source_list = getLocalStorageValue(
-        'auto_choose_source_list',
-        ['kuwo', 'qq', 'migu']
-      ).filter((i) => i !== trackPlatform);
-
-      resolveFirstDefined(
-        failover_source_list.map((source) =>
-          bootstrapTrackFromProvider(source, track)
-        )
-      ).then((response) => {
-        if (response === undefined) {
-          playerFailCallback();
+    const task = RequestTask.create(
+      async ({ resolve, reject, signal, onCleanup }) => {
+        const bootstrap = (candidate) => {
+          const operation = RequestTask.create(
+            ({ resolve: success, reject: failure, signal: childSignal }) => {
+              const provider = getProviderByName(candidate.source);
+              if (!provider?.bootstrap_track) {
+                failure({ code: 'UNSUPPORTED' });
+                return;
+              }
+              provider.bootstrap_track(
+                candidate,
+                (sound) => {
+                  if (!sound?.url || typeof sound.url !== 'string') {
+                    failure({ code: 'RESOURCE_UNAVAILABLE' });
+                    return;
+                  }
+                  success({
+                    ...sound,
+                    platform: sound.platform || candidate.source,
+                  });
+                },
+                (error) =>
+                  failure(
+                    error?.code ? error : { code: 'RESOURCE_UNAVAILABLE' }
+                  ),
+                { signal: childSignal }
+              );
+            },
+            { source: candidate.source, stage: 'bootstrap' }
+          );
+          onCleanup(() => operation.cancel());
+          return operation.promise;
+        };
+        let originalError;
+        try {
+          resolve(await bootstrap(track));
+          return;
+        } catch (error) {
+          originalError = error;
+        }
+        if (signal.aborted) return;
+        if (
+          track.source === 'localmusic' ||
+          localStorage.getObject('enable_auto_choose_source') === false
+        ) {
+          reject(originalError);
           return;
         }
-
-        sound.url = response.url;
-        sound.bitrate = response.bitrate;
-        sound.platform = response.platform;
-        playerSuccessCallback(sound);
-      });
-    }
-
-    const provider = getProviderByName(track.source);
-
-    provider.bootstrap_track(track, successCallback, failureCallback);
+        const configured = getLocalStorageValue('auto_choose_source_list', [
+          'kuwo',
+          'qq',
+          'migu',
+        ]);
+        const sources = [
+          ...new Set(Array.isArray(configured) ? configured : []),
+        ].filter(
+          (name) => name !== track.source && getProviderByName(name)?.search
+        );
+        try {
+          const sound = await Promise.any(
+            sources.map(async (source) => {
+              const search = this.search(
+                source,
+                buildBootstrapTrackSearchOptions(track)
+              );
+              onCleanup(() => search.cancel());
+              const data = await search.promise;
+              if (signal.aborted)
+                throw Object.assign(new Error('Cancelled'), {
+                  code: 'CANCELLED',
+                });
+              const candidate = data.result.find((item) =>
+                isSameBootstrapCandidate(track, item)
+              );
+              if (!candidate)
+                throw Object.assign(new Error('No matching track'), {
+                  code: 'RESOURCE_UNAVAILABLE',
+                });
+              return bootstrap(candidate);
+            })
+          );
+          resolve(sound);
+        } catch {
+          reject({ code: 'ALL_SOURCES_FAILED', originalError });
+        }
+      },
+      { source: track.source, stage: 'bootstrap', timeout: 30000 }
+    );
+    task.success(playerSuccessCallback).error((error) => {
+      if (error.code !== 'CANCELLED') playerFailCallback(error);
+    });
+    return task;
   },
 
   login(source, options) {
     const url = `/login?${queryStringify(options)}`;
     const provider = getProviderByName(source);
 
-    return provider.login(url);
+    return RequestTask.legacy(() => provider.login(url), {
+      source,
+      stage: 'login',
+    });
   },
   getUser(source) {
     const provider = getProviderByName(source);
-    return provider.get_user();
+    return RequestTask.legacy(() => provider.get_user(), {
+      source,
+      stage: 'user',
+    });
   },
   getLoginUrl(source) {
     const provider = getProviderByName(source);
@@ -493,13 +581,19 @@ const MediaService = {
     const provider = getProviderByName(source);
     const url = `/get_user_create_playlist?${queryStringify(options)}`;
 
-    return provider.get_user_created_playlist(url);
+    return RequestTask.legacy(() => provider.get_user_created_playlist(url), {
+      source,
+      stage: 'playlists',
+    });
   },
   getUserFavoritePlaylist(source, options) {
     const provider = getProviderByName(source);
     const url = `/get_user_favorite_playlist?${queryStringify(options)}`;
 
-    return provider.get_user_favorite_playlist(url);
+    return RequestTask.legacy(() => provider.get_user_favorite_playlist(url), {
+      source,
+      stage: 'playlists',
+    });
   },
   getRecommendPlaylist(source) {
     const provider = getProviderByName(source);

@@ -46,17 +46,22 @@ function getPlayerAsync(mode, callback) {
 const frontPlayerListener = [];
 function addFrontPlayerListener(listener) {
   frontPlayerListener.push(listener);
+  return () => {
+    const index = frontPlayerListener.indexOf(listener);
+    if (index >= 0) frontPlayerListener.splice(index, 1);
+  };
 }
 
 function addBackgroundPlayerListener(listener) {
-  return (chrome || browser).runtime.onMessage.addListener(
-    (msg, sender, res) => {
-      if (!msg.type.startsWith('BG_PLAYER:')) {
-        return null;
-      }
-      return listener(msg, sender, res);
+  const { runtime } = typeof browser !== 'undefined' ? browser : chrome;
+  const handler = (msg, sender, res) => {
+    if (!msg || !msg.type || !msg.type.startsWith('BG_PLAYER:')) {
+      return null;
     }
-  );
+    return listener(msg, sender, res);
+  };
+  runtime.onMessage.addListener(handler);
+  return () => runtime.onMessage.removeListener(handler);
 }
 
 function addPlayerListener(mode, listener) {
@@ -70,11 +75,9 @@ function addPlayerListener(mode, listener) {
 }
 
 function frontPlayerSendMessage(message) {
-  if (frontPlayerListener !== []) {
-    frontPlayerListener.forEach((listener) => {
-      listener(message);
-    });
-  }
+  frontPlayerListener.slice().forEach((listener) => {
+    listener(message);
+  });
 }
 
 function backgroundPlayerSendMessage(message) {

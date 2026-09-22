@@ -1,6 +1,4 @@
-/* eslint-disable import/no-unresolved */
-/* eslint-disable global-require */
-/* global angular MediaService isElectron require */
+/* global angular MediaService isElectron */
 angular.module('listenone').controller('AuthController', [
   '$scope',
   ($scope) => {
@@ -40,8 +38,7 @@ angular.module('listenone').controller('AuthController', [
     $scope.openLogin = (source) => {
       const url = $scope.getLoginUrl(source);
       if (isElectron()) {
-        const { ipcRenderer } = require('electron');
-        return ipcRenderer.send('openUrl', url);
+        return window.listen1Desktop.openLogin(url);
       }
       return window.open(url, '_blank');
     };

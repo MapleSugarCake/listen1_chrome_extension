@@ -60,6 +60,13 @@ class localmusic {
   }
 
   static bootstrap_track(track, success, failure) {
+    if (window.listen1Desktop) {
+      window.listen1Desktop
+        .localFileUrl(track.id)
+        .then((url) => success({ url, platform: 'localmusic' }))
+        .catch(failure);
+      return;
+    }
     const sound = {};
     sound.url = track.sound_url;
     sound.platform = 'localmusic';

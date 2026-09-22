@@ -1,8 +1,7 @@
 /* eslint-disable no-param-reassign */
 /* eslint-disable no-shadow */
-/* eslint-disable import/no-unresolved */
-/* eslint-disable global-require */
-/* global angular notyf i18next MediaService l1Player hotkeys GithubClient isElectron require getLocalStorageValue getPlayer getPlayerAsync addPlayerListener smoothScrollTo lastfm */
+
+/* global angular notyf i18next MediaService l1Player hotkeys GithubClient isElectron getLocalStorageValue getPlayer getPlayerAsync addPlayerListener smoothScrollTo lastfm */
 
 function getCSSStringFromSetting(setting) {
   let { backgroundAlpha } = setting;
@@ -67,6 +66,10 @@ angular.module('listenone').controller('PlayController', [
     $scope.lyricArray = [];
     $scope.lyricLineNumber = -1;
     $scope.lastTrackId = null;
+    let lyricRequest = null;
+    $scope.$on('$destroy', () => {
+      if (lyricRequest) lyricRequest.cancel();
+    });
 
     $scope.enableGloablShortcut = false;
     $scope.isChrome = !isElectron();
@@ -104,8 +107,7 @@ angular.module('listenone').controller('PlayController', [
     };
 
     if (!$scope.isChrome) {
-      // eslint-disable-next-line no-undef
-      $scope.isMac = process.platform === 'darwin';
+      $scope.isMac = window.listen1Desktop.platform === 'darwin';
     }
 
     function switchMode(mode) {
@@ -202,7 +204,7 @@ angular.module('listenone').controller('PlayController', [
       if (!isElectron()) {
         return;
       }
-      let message = '';
+      let message;
       if (toggle === true) {
         $scope.enableGlobalShortCut = !$scope.enableGlobalShortCut;
       }
@@ -218,15 +220,14 @@ angular.module('listenone').controller('PlayController', [
         $scope.enableGlobalShortCut
       );
 
-      const { ipcRenderer } = require('electron');
-      ipcRenderer.send('control', message);
+      window.listen1Desktop.control(message);
     };
 
     $scope.openLyricFloatingWindow = (toggle) => {
       if (!isElectron()) {
         return;
       }
-      let message = '';
+      let message;
       if (toggle === true) {
         $scope.enableLyricFloatingWindow = !$scope.enableLyricFloatingWindow;
       }
@@ -239,80 +240,84 @@ angular.module('listenone').controller('PlayController', [
         'enable_lyric_floating_window',
         $scope.enableLyricFloatingWindow
       );
-      const { ipcRenderer } = require('electron');
-      ipcRenderer.send(
-        'control',
+
+      window.listen1Desktop.control(
         message,
         getCSSStringFromSetting($scope.floatWindowSetting)
       );
     };
 
     if (isElectron()) {
-      const { webFrame, ipcRenderer } = require('electron');
       // webFrame.setVisualZoomLevelLimits(1, 3);
-      ipcRenderer.on('setZoomLevel', (event, level) => {
-        webFrame.setZoomLevel(level);
-      });
-      ipcRenderer.on('lyricWindow', (event, arg) => {
-        if (arg === 'float_window_close') {
-          $scope.openLyricFloatingWindow(true);
-        } else if (
-          arg === 'float_window_font_small' ||
-          arg === 'float_window_font_large'
-        ) {
-          const MIN_FONT_SIZE = 12;
-          const MAX_FONT_SIZE = 50;
-          const offset = arg === 'float_window_font_small' ? -1 : 1;
-          $scope.floatWindowSetting.fontSize += offset;
-          if ($scope.floatWindowSetting.fontSize < MIN_FONT_SIZE) {
-            $scope.floatWindowSetting.fontSize = MIN_FONT_SIZE;
-          } else if ($scope.floatWindowSetting.fontSize > MAX_FONT_SIZE) {
-            $scope.floatWindowSetting.fontSize = MAX_FONT_SIZE;
-          }
-        } else if (
-          arg === 'float_window_background_light' ||
-          arg === 'float_window_background_dark'
-        ) {
-          const MIN_BACKGROUND_ALPHA = 0;
-          const MAX_BACKGROUND_ALPHA = 1;
-          const offset = arg === 'float_window_background_light' ? -0.1 : 0.1;
-          $scope.floatWindowSetting.backgroundAlpha += offset;
-          if (
-            $scope.floatWindowSetting.backgroundAlpha < MIN_BACKGROUND_ALPHA
-          ) {
-            $scope.floatWindowSetting.backgroundAlpha = MIN_BACKGROUND_ALPHA;
+      $scope.$on(
+        '$destroy',
+        window.listen1Desktop.on('setZoomLevel', (level) => {
+          window.listen1Desktop.setZoomLevel(level);
+        })
+      );
+      $scope.$on(
+        '$destroy',
+        window.listen1Desktop.on('lyricWindow', (arg) => {
+          if (arg === 'float_window_close') {
+            $scope.openLyricFloatingWindow(true);
           } else if (
-            $scope.floatWindowSetting.backgroundAlpha > MAX_BACKGROUND_ALPHA
+            arg === 'float_window_font_small' ||
+            arg === 'float_window_font_large'
           ) {
-            $scope.floatWindowSetting.backgroundAlpha = MAX_BACKGROUND_ALPHA;
+            const MIN_FONT_SIZE = 12;
+            const MAX_FONT_SIZE = 50;
+            const offset = arg === 'float_window_font_small' ? -1 : 1;
+            $scope.floatWindowSetting.fontSize += offset;
+            if ($scope.floatWindowSetting.fontSize < MIN_FONT_SIZE) {
+              $scope.floatWindowSetting.fontSize = MIN_FONT_SIZE;
+            } else if ($scope.floatWindowSetting.fontSize > MAX_FONT_SIZE) {
+              $scope.floatWindowSetting.fontSize = MAX_FONT_SIZE;
+            }
+          } else if (
+            arg === 'float_window_background_light' ||
+            arg === 'float_window_background_dark'
+          ) {
+            const MIN_BACKGROUND_ALPHA = 0;
+            const MAX_BACKGROUND_ALPHA = 1;
+            const offset = arg === 'float_window_background_light' ? -0.1 : 0.1;
+            $scope.floatWindowSetting.backgroundAlpha += offset;
+            if (
+              $scope.floatWindowSetting.backgroundAlpha < MIN_BACKGROUND_ALPHA
+            ) {
+              $scope.floatWindowSetting.backgroundAlpha = MIN_BACKGROUND_ALPHA;
+            } else if (
+              $scope.floatWindowSetting.backgroundAlpha > MAX_BACKGROUND_ALPHA
+            ) {
+              $scope.floatWindowSetting.backgroundAlpha = MAX_BACKGROUND_ALPHA;
+            }
+          } else if (arg === 'float_window_font_change_color') {
+            const floatWindowlyricColors = [
+              '#ffffff',
+              '#65d29f',
+              '#3c87eb',
+              '#ec63af',
+              '#4f5455',
+              '#eb605b',
+            ];
+            const currentIndex = floatWindowlyricColors.indexOf(
+              $scope.floatWindowSetting.color
+            );
+            const nextIndex =
+              (currentIndex + 1) % floatWindowlyricColors.length;
+            $scope.floatWindowSetting.color = floatWindowlyricColors[nextIndex];
           }
-        } else if (arg === 'float_window_font_change_color') {
-          const floatWindowlyricColors = [
-            '#ffffff',
-            '#65d29f',
-            '#3c87eb',
-            '#ec63af',
-            '#4f5455',
-            '#eb605b',
-          ];
-          const currentIndex = floatWindowlyricColors.indexOf(
-            $scope.floatWindowSetting.color
+          localStorage.setObject(
+            'float_window_setting',
+            $scope.floatWindowSetting
           );
-          const nextIndex = (currentIndex + 1) % floatWindowlyricColors.length;
-          $scope.floatWindowSetting.color = floatWindowlyricColors[nextIndex];
-        }
-        localStorage.setObject(
-          'float_window_setting',
-          $scope.floatWindowSetting
-        );
-        const { ipcRenderer } = require('electron');
-        const message = 'update_lyric_floating_window_css';
-        ipcRenderer.send(
-          'control',
-          message,
-          getCSSStringFromSetting($scope.floatWindowSetting)
-        );
-      });
+
+          const message = 'update_lyric_floating_window_css';
+          window.listen1Desktop.control(
+            message,
+            getCSSStringFromSetting($scope.floatWindowSetting)
+          );
+        })
+      );
     }
 
     $scope.saveLocalSettings = () => {
@@ -424,7 +429,7 @@ angular.module('listenone').controller('PlayController', [
 
           const timeReg = /\[(\d{2,})\:(\d{2})(?:\.(\d{1,3}))?\]/g; // eslint-disable-line no-useless-escape
 
-          let timeRegResult = null;
+          let timeRegResult;
           // eslint-disable-next-line no-cond-assign
           while ((timeRegResult = timeReg.exec(line)) !== null) {
             const htmlUnescapes = {
@@ -501,324 +506,356 @@ angular.module('listenone').controller('PlayController', [
       }
     }
 
-    addPlayerListener(mode, (msg, sender, sendResponse) => {
-      // Player events are the single source of truth for the controller state.
-      // UI actions call l1Player, and this listener reflects the resulting
-      // player state back into Angular scope.
-      if (
-        typeof msg.type === 'string' &&
-        msg.type.split(':')[0] === 'BG_PLAYER'
-      ) {
-        switch (msg.type.split(':').slice(1).join('')) {
-          case 'READY': {
-            break;
-          }
-          case 'PLAY_FAILED': {
-            notyf.info(i18next.t('_COPYRIGHT_ISSUE'), true);
-            break;
-          }
-
-          case 'VOLUME': {
-            $scope.$evalAsync(() => {
-              $scope.volume = msg.data;
-            });
-            break;
-          }
-
-          case 'FRAME_UPDATE': {
-            // 'currentTrack:position'
-            // update lyric position
-            if (!l1Player.status.playing.id) break;
-            const currentSeconds = msg.data.pos;
-            let lastObject = null;
-            let lastObjectTrans = null;
-            $scope.lyricArray.forEach((lyric) => {
-              if (currentSeconds >= lyric.seconds / 1000) {
-                if (lyric.translationFlag !== true) {
-                  lastObject = lyric;
-                } else {
-                  lastObjectTrans = lyric;
-                }
-              }
-            });
-            if (
-              lastObject &&
-              lastObject.lineNumber !== $scope.lyricLineNumber
-            ) {
-              const lineElement = document.querySelector(
-                `.playsong-detail .detail-songinfo .lyric p[data-line="${lastObject.lineNumber}"]`
+    const removePlayerListener = addPlayerListener(
+      mode,
+      (msg, sender, sendResponse) => {
+        $scope.$evalAsync();
+        // Player events are the single source of truth for the controller state.
+        // UI actions call l1Player, and this listener reflects the resulting
+        // player state back into Angular scope.
+        if (
+          typeof msg.type === 'string' &&
+          msg.type.split(':')[0] === 'BG_PLAYER'
+        ) {
+          switch (msg.type.split(':').slice(1).join('')) {
+            case 'READY': {
+              break;
+            }
+            case 'PLAY_FAILED': {
+              notyf.warning(
+                i18next.t(`_ERROR_${msg.data?.code || 'MEDIA_ERROR'}`),
+                true
               );
-
-              let windowHeight = document.querySelector(
-                '.playsong-detail .detail-songinfo .lyric'
-              ).offsetHeight;
-              if (useModernTheme()) {
-                windowHeight =
-                  document.querySelector('body').offsetHeight - 100;
-              }
-
-              const adjustOffset = 30;
-              const offset =
-                lineElement.offsetTop - windowHeight / 2 + adjustOffset;
-              smoothScrollTo(document.querySelector('.lyric'), offset, 500);
-              $scope.lyricLineNumber = lastObject.lineNumber;
-              if (
-                lastObjectTrans &&
-                lastObjectTrans.lineNumber !== $scope.lyricLineNumberTrans
-              ) {
-                $scope.lyricLineNumberTrans = lastObjectTrans.lineNumber;
-              }
-              if (isElectron()) {
-                const { ipcRenderer } = require('electron');
-                const currentLyric =
-                  $scope.lyricArray[lastObject.lineNumber].content;
-                let currentLyricTrans = '';
-                if (
-                  $scope.enableLyricFloatingWindowTranslation === true &&
-                  lastObjectTrans
-                ) {
-                  currentLyricTrans =
-                    $scope.lyricArray[lastObjectTrans.lineNumber].content;
-                }
-                ipcRenderer.send('currentLyric', {
-                  lyric: currentLyric,
-                  tlyric: currentLyricTrans,
-                });
-              }
+              break;
             }
 
-            // 'currentTrack:duration'
-            (() => {
-              const durationSec = Math.floor(msg.data.duration);
-              const durationStr = `${Math.floor(durationSec / 60)}:${`0${
-                durationSec % 60
-              }`.substr(-2)}`;
-              if (
-                msg.data.duration === 0 ||
-                $scope.currentDuration === durationStr
-              ) {
-                return;
-              }
-              $scope.currentDuration = durationStr;
-              $scope.currentDurationSeconds = msg.data.duration;
-            })();
-
-            // 'track:progress'
-            if ($scope.changingProgress === false) {
+            case 'VOLUME': {
               $scope.$evalAsync(() => {
-                if (msg.data.duration === 0) {
-                  $scope.myProgress = 0;
-                } else {
-                  $scope.myProgress = (msg.data.pos / msg.data.duration) * 100;
-                }
-                const posSec = Math.floor(msg.data.pos);
-                const posStr = formatSecond(posSec);
-                $scope.currentPosition = posStr;
+                $scope.volume = msg.data;
               });
-            }
-            break;
-          }
-
-          case 'LOAD': {
-            $scope.currentPlaying = msg.data.currentPlaying;
-            const { length, index } = msg.data.playlist;
-
-            if (useModernTheme()) {
-              $scope.currentIndex = index;
-              $scope.refreshStage(index, length);
-            }
-
-            if (useModernTheme()) {
-              const rotatemark = document.getElementById('rotatemark');
-              const circlmark = document.getElementById('circlmark');
-              if (rotatemark !== null && circlmark !== null) {
-                circlmark.classList.add('circlmark');
-                rotatemark.classList.add('rotatemark');
-                circlmark.addEventListener('animationend', () => {
-                  circlmark.classList.remove('circlmark');
-                });
-                rotatemark.addEventListener('animationend', () => {
-                  rotatemark.classList.remove('rotatemark');
-                });
-              }
-            }
-
-            if (msg.data.currentPlaying.id === undefined) {
               break;
             }
-            $scope.currentPlaying.platformText = i18next.t(
-              $scope.currentPlaying.platform
-            );
-            $scope.myProgress = 0;
-            if ($scope.lastTrackId === msg.data.currentPlaying.id) {
-              break;
-            }
-            const current = localStorage.getObject('player-settings') || {};
-            current.nowplaying_track_id = msg.data.currentPlaying.id;
-            localStorage.setObject('player-settings', current);
-            // update lyric
-            $scope.lyricArray = [];
-            $scope.lyricLineNumber = -1;
-            $scope.lyricLineNumberTrans = -1;
-            smoothScrollTo(document.querySelector('.lyric'), 0, 300);
-            const track = msg.data.currentPlaying;
-            $rootScope.page_title = {
-              title: track.title,
-              artist: track.artist,
-              status: 'playing',
-            };
-            if (lastfm.isAuthorized()) {
-              lastfm.sendNowPlaying(track.title, track.artist, () => {});
-            }
-            MediaService.getLyric(
-              msg.data.currentPlaying.id,
-              msg.data.currentPlaying.album_id,
-              track.lyric_url,
-              track.tlyric_url
-            ).success((res) => {
-              const { lyric, tlyric } = res;
-              if (!lyric) {
-                return;
-              }
-              $scope.lyricArray = parseLyric(lyric, tlyric);
-            });
-            $scope.lastTrackId = msg.data.currentPlaying.id;
-            if (isElectron()) {
-              const { ipcRenderer } = require('electron');
-              ipcRenderer.send('currentLyric', track.title);
-              ipcRenderer.send('trackPlayingNow', track);
-            }
-            break;
-          }
 
-          case 'MUTE': {
-            // 'music:mute'
-            $scope.$evalAsync(() => {
-              $scope.mute = msg.data;
-            });
-            break;
-          }
+            case 'FRAME_UPDATE': {
+              // 'currentTrack:position'
+              // update lyric position
+              if (!l1Player.status.playing.id) break;
+              const currentSeconds = msg.data.pos;
+              let lastObject = null;
+              let lastObjectTrans = null;
+              $scope.lyricArray.forEach((lyric) => {
+                if (currentSeconds >= lyric.seconds / 1000) {
+                  if (lyric.translationFlag !== true) {
+                    lastObject = lyric;
+                  } else {
+                    lastObjectTrans = lyric;
+                  }
+                }
+              });
+              if (
+                lastObject &&
+                lastObject.lineNumber !== $scope.lyricLineNumber
+              ) {
+                const lineElement = document.querySelector(
+                  `.playsong-detail .detail-songinfo .lyric p[data-line="${lastObject.lineNumber}"]`
+                );
 
-          case 'PLAYLIST': {
-            // 'player:playlist'
-            $scope.$evalAsync(() => {
-              $scope.playlist = msg.data;
-              $scope.refreshStage();
-              localStorage.setObject('current-playing', msg.data);
-            });
+                let windowHeight = document.querySelector(
+                  '.playsong-detail .detail-songinfo .lyric'
+                ).offsetHeight;
+                if (useModernTheme()) {
+                  windowHeight =
+                    document.querySelector('body').offsetHeight - 100;
+                }
 
-            break;
-          }
-
-          case 'PLAY_STATE': {
-            // 'music:isPlaying'
-            $scope.$evalAsync(() => {
-              $scope.isPlaying = !!msg.data.isPlaying;
-            });
-            let title = 'Listen 1';
-            if ($rootScope.page_title !== undefined) {
-              title = '';
-              if (msg.data.isPlaying) {
-                $rootScope.page_title.status = 'playing';
-              } else {
-                $rootScope.page_title.status = 'paused';
-              }
-              if ($rootScope.page_title.status !== '') {
-                if ($rootScope.page_title.status === 'playing') {
-                  title += '▶ ';
-                } else if ($rootScope.page_title.status === 'paused') {
-                  title += '❚❚ ';
+                const adjustOffset = 30;
+                const offset =
+                  lineElement.offsetTop - windowHeight / 2 + adjustOffset;
+                smoothScrollTo(document.querySelector('.lyric'), offset, 500);
+                $scope.lyricLineNumber = lastObject.lineNumber;
+                if (
+                  lastObjectTrans &&
+                  lastObjectTrans.lineNumber !== $scope.lyricLineNumberTrans
+                ) {
+                  $scope.lyricLineNumberTrans = lastObjectTrans.lineNumber;
+                }
+                if (isElectron()) {
+                  const currentLyric =
+                    $scope.lyricArray[lastObject.lineNumber].content;
+                  let currentLyricTrans = '';
+                  if (
+                    $scope.enableLyricFloatingWindowTranslation === true &&
+                    lastObjectTrans
+                  ) {
+                    currentLyricTrans =
+                      $scope.lyricArray[lastObjectTrans.lineNumber].content;
+                  }
+                  window.listen1Desktop.setLyric({
+                    lyric: currentLyric,
+                    tlyric: currentLyricTrans,
+                  });
                 }
               }
-              title += $rootScope.page_title.title;
-              if ($rootScope.page_title.artist !== '') {
-                title += ` - ${$rootScope.page_title.artist}`;
+
+              // 'currentTrack:duration'
+              (() => {
+                const durationSec = Math.floor(msg.data.duration);
+                const durationStr = `${Math.floor(durationSec / 60)}:${`0${
+                  durationSec % 60
+                }`.substr(-2)}`;
+                if (
+                  msg.data.duration === 0 ||
+                  $scope.currentDuration === durationStr
+                ) {
+                  return;
+                }
+                $scope.currentDuration = durationStr;
+                $scope.currentDurationSeconds = msg.data.duration;
+              })();
+
+              // 'track:progress'
+              if ($scope.changingProgress === false) {
+                $scope.$evalAsync(() => {
+                  if (msg.data.duration === 0) {
+                    $scope.myProgress = 0;
+                  } else {
+                    $scope.myProgress =
+                      (msg.data.pos / msg.data.duration) * 100;
+                  }
+                  const posSec = Math.floor(msg.data.pos);
+                  const posStr = formatSecond(posSec);
+                  $scope.currentPosition = posStr;
+                });
               }
+              break;
             }
 
-            $rootScope.document_title = title;
-            if (isElectron()) {
-              const { ipcRenderer } = require('electron');
-              if (msg.data.isPlaying) {
-                ipcRenderer.send('isPlaying', true);
-              } else {
-                ipcRenderer.send('isPlaying', false);
-              }
-            }
+            case 'LOAD': {
+              $scope.currentPlaying = msg.data.currentPlaying;
+              const { length, index } = msg.data.playlist;
 
-            if (msg.data.reason === 'Ended') {
-              if (!lastfm.isAuthorized()) {
+              if (useModernTheme()) {
+                $scope.currentIndex = index;
+                $scope.refreshStage(index, length);
+              }
+
+              if (useModernTheme()) {
+                const rotatemark = document.getElementById('rotatemark');
+                const circlmark = document.getElementById('circlmark');
+                if (rotatemark !== null && circlmark !== null) {
+                  circlmark.classList.add('circlmark');
+                  rotatemark.classList.add('rotatemark');
+                  circlmark.onanimationend = () => {
+                    circlmark.classList.remove('circlmark');
+                  };
+                  rotatemark.onanimationend = () => {
+                    rotatemark.classList.remove('rotatemark');
+                  };
+                }
+              }
+
+              if (msg.data.currentPlaying.id === undefined) {
+                if (lyricRequest) lyricRequest.cancel();
+                $scope.lastTrackId = null;
+                $scope.lyricArray = [];
+                if (isElectron()) window.listen1Desktop.setLyric('');
                 break;
               }
-              // send lastfm scrobble
-              const track = l1Player.getTrackById(l1Player.status.playing.id);
-              lastfm.scrobble(
-                l1Player.status.playing.playedFrom,
-                track.title,
-                track.artist,
-                track.album,
-                () => {}
+              $scope.currentPlaying.platformText = i18next.t(
+                $scope.currentPlaying.platform
               );
+              $scope.myProgress = 0;
+              if ($scope.lastTrackId === msg.data.currentPlaying.id) {
+                break;
+              }
+              const current = localStorage.getObject('player-settings') || {};
+              current.nowplaying_track_id = msg.data.currentPlaying.id;
+              localStorage.setObject('player-settings', current);
+              // update lyric
+              $scope.lyricArray = [];
+              $scope.lyricLineNumber = -1;
+              $scope.lyricLineNumberTrans = -1;
+              smoothScrollTo(document.querySelector('.lyric'), 0, 300);
+              const track = msg.data.currentPlaying;
+              $rootScope.page_title = {
+                title: track.title,
+                artist: track.artist,
+                status: 'playing',
+              };
+              if (lastfm.isAuthorized()) {
+                lastfm.sendNowPlaying(track.title, track.artist, () => {});
+              }
+              if (lyricRequest) lyricRequest.cancel();
+              lyricRequest = MediaService.getLyric(
+                msg.data.currentPlaying.id,
+                msg.data.currentPlaying.album_id,
+                track.lyric_url,
+                track.tlyric_url
+              ).success((res) => {
+                if ($scope.lastTrackId !== track.id) return;
+                const { lyric, tlyric } = res;
+                if (!lyric) {
+                  return;
+                }
+                $scope.$evalAsync(() => {
+                  if ($scope.lastTrackId === track.id)
+                    $scope.lyricArray = parseLyric(lyric, tlyric);
+                });
+              });
+              $scope.lastTrackId = msg.data.currentPlaying.id;
+              if (isElectron()) {
+                window.listen1Desktop.setLyric(track.title);
+                window.listen1Desktop.setTrack(track);
+              }
+              break;
             }
 
-            break;
+            case 'MUTE': {
+              // 'music:mute'
+              $scope.$evalAsync(() => {
+                $scope.mute = msg.data;
+              });
+              break;
+            }
+
+            case 'PLAYLIST': {
+              // 'player:playlist'
+              $scope.$evalAsync(() => {
+                $scope.playlist = msg.data;
+                $scope.refreshStage();
+                localStorage.setObject('current-playing', msg.data);
+              });
+
+              break;
+            }
+
+            case 'PLAY_STATE': {
+              // 'music:isPlaying'
+              $scope.$evalAsync(() => {
+                $scope.isPlaying = !!msg.data.isPlaying;
+              });
+              let title = 'Listen 1';
+              if ($rootScope.page_title !== undefined) {
+                title = '';
+                if (msg.data.isPlaying) {
+                  $rootScope.page_title.status = 'playing';
+                } else {
+                  $rootScope.page_title.status = 'paused';
+                }
+                if ($rootScope.page_title.status !== '') {
+                  if ($rootScope.page_title.status === 'playing') {
+                    title += '▶ ';
+                  } else if ($rootScope.page_title.status === 'paused') {
+                    title += '❚❚ ';
+                  }
+                }
+                title += $rootScope.page_title.title;
+                if ($rootScope.page_title.artist !== '') {
+                  title += ` - ${$rootScope.page_title.artist}`;
+                }
+              }
+
+              $rootScope.document_title = title;
+              if (isElectron()) {
+                if (msg.data.isPlaying) {
+                  window.listen1Desktop.setPlaying(true);
+                } else {
+                  window.listen1Desktop.setPlaying(false);
+                }
+              }
+
+              if (msg.data.reason === 'Ended') {
+                if (!lastfm.isAuthorized()) {
+                  break;
+                }
+                // send lastfm scrobble
+                const track = l1Player.getTrackById(l1Player.status.playing.id);
+                lastfm.scrobble(
+                  l1Player.status.playing.playedFrom,
+                  track.title,
+                  track.artist,
+                  track.album,
+                  () => {}
+                );
+              }
+
+              break;
+            }
+            case 'RETRIEVE_URL_SUCCESS': {
+              $scope.currentPlaying = msg.data;
+              // update translate whenever set value
+              $scope.currentPlaying.platformText = i18next.t(
+                $scope.currentPlaying.platform
+              );
+              break;
+            }
+            case 'RETRIEVE_URL_FAIL': {
+              notyf.warning(
+                i18next.t(
+                  `_ERROR_${msg.data.error?.code || 'RESOURCE_UNAVAILABLE'}`
+                ),
+                true
+              );
+              break;
+            }
+            case 'RETRIEVE_URL_FAIL_ALL': {
+              $scope.failAllNotice();
+              break;
+            }
+            default:
+              break;
           }
-          case 'RETRIEVE_URL_SUCCESS': {
-            $scope.currentPlaying = msg.data;
-            // update translate whenever set value
-            $scope.currentPlaying.platformText = i18next.t(
-              $scope.currentPlaying.platform
-            );
-            break;
-          }
-          case 'RETRIEVE_URL_FAIL': {
-            $scope.copyrightNotice();
-            break;
-          }
-          case 'RETRIEVE_URL_FAIL_ALL': {
-            $scope.failAllNotice();
-            break;
-          }
-          default:
-            break;
+        }
+        if (sendResponse !== undefined) {
+          sendResponse();
         }
       }
-      if (sendResponse !== undefined) {
-        sendResponse();
-      }
-    });
+    );
+
+    $scope.$on('$destroy', removePlayerListener);
 
     // connect player should run after all addListener function finished
     l1Player.connectPlayer();
 
     // define keybind
+    const shortcutBindings = [];
+    const bindShortcut = (key, action) => {
+      const handler = (...args) => action(...args);
+      hotkeys(key, handler);
+      shortcutBindings.push({ key, handler });
+    };
+    $scope.$on('$destroy', () =>
+      shortcutBindings.forEach(({ key, handler }) =>
+        hotkeys.unbind(key, handler)
+      )
+    );
     // description: '播放/暂停',
-    hotkeys('p', l1Player.togglePlayPause);
+    bindShortcut('p', l1Player.togglePlayPause);
 
     // description: '上一首',
-    hotkeys('[', l1Player.prev);
+    bindShortcut('[', l1Player.prev);
 
     // description: '下一首',
-    hotkeys(']', l1Player.next);
+    bindShortcut(']', l1Player.next);
 
     // description: '静音/取消静音',
-    hotkeys('m', l1Player.toggleMute);
+    bindShortcut('m', l1Player.toggleMute);
 
     // description: '打开/关闭播放列表',
-    hotkeys('l', $scope.togglePlaylist);
+    bindShortcut('l', $scope.togglePlaylist);
 
     // description: '切换播放模式（顺序/随机/单曲循环）',
-    hotkeys('s', $scope.changePlaymode);
+    bindShortcut('s', $scope.changePlaymode);
 
     // description: '音量增加',
-    hotkeys('u', () => {
+    bindShortcut('u', () => {
       $timeout(() => {
         l1Player.adjustVolume(true);
       });
     });
 
     // description: '音量减少',
-    hotkeys('d', () => {
+    bindShortcut('d', () => {
       $timeout(() => {
         l1Player.adjustVolume(false);
       });
@@ -842,15 +879,18 @@ angular.module('listenone').controller('PlayController', [
     };
 
     if (isElectron()) {
-      require('electron').ipcRenderer.on('globalShortcut', (event, message) => {
-        if (message === 'right') {
-          l1Player.next();
-        } else if (message === 'left') {
-          l1Player.prev();
-        } else if (message === 'space') {
-          l1Player.togglePlayPause();
-        }
-      });
+      $scope.$on(
+        '$destroy',
+        window.listen1Desktop.on('globalShortcut', (message) => {
+          if (message === 'right') {
+            l1Player.next();
+          } else if (message === 'left') {
+            l1Player.prev();
+          } else if (message === 'space') {
+            l1Player.togglePlayPause();
+          }
+        })
+      );
     }
 
     $scope.setAutoChooseSource = (toggle) => {

@@ -95,10 +95,9 @@ class xiami {
   }
 
   static parse_url() {
-    let result;
     return {
       success: (fn) => {
-        fn(result);
+        fn(undefined);
       },
     };
   }

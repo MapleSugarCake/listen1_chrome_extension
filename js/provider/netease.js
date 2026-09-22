@@ -1,3 +1,4 @@
+/* global RequestTask */
 /* eslint-disable no-underscore-dangle */
 /* eslint-disable no-unused-vars */
 /* global getParameterByName forge */
@@ -87,20 +88,23 @@ class netease {
     const url = 'https://music.163.com/weapi/toplist/detail';
     const data = this.weapi({});
     return {
-      success: (fn) => {
-        axios.post(url, new URLSearchParams(data)).then((response) => {
-          const result = [];
-          response.data.list.forEach((item) => {
-            const playlist = {
-              cover_img_url: item.coverImgUrl,
-              id: `neplaylist_${item.id}`,
-              source_url: `https://music.163.com/#/playlist?id=${item.id}`,
-              title: item.name,
-            };
-            result.push(playlist);
-          });
-          return fn({ result });
-        });
+      success: (fn, failure = () => {}) => {
+        axios
+          .post(url, new URLSearchParams(data))
+          .then((response) => {
+            const result = [];
+            response.data.list.forEach((item) => {
+              const playlist = {
+                cover_img_url: item.coverImgUrl,
+                id: `neplaylist_${item.id}`,
+                source_url: `https://music.163.com/#/playlist?id=${item.id}`,
+                title: item.name,
+              };
+              result.push(playlist);
+            });
+            return fn({ result });
+          })
+          .catch(failure);
       },
     };
   }
@@ -126,37 +130,40 @@ class netease {
     }
 
     return {
-      success: (fn) => {
-        axios.get(target_url).then((response) => {
-          const { data } = response;
-          const list_elements = Array.from(
-            new DOMParser()
-              .parseFromString(data, 'text/html')
-              .getElementsByClassName('m-cvrlst')[0].children
-          );
-          const result = list_elements.map((item) => ({
-            cover_img_url: item
-              .getElementsByTagName('img')[0]
-              .src.replace('140y140', '512y512'),
+      success: (fn, failure = () => {}) => {
+        axios
+          .get(target_url)
+          .then((response) => {
+            const { data } = response;
+            const list_elements = Array.from(
+              new DOMParser()
+                .parseFromString(data, 'text/html')
+                .getElementsByClassName('m-cvrlst')[0].children
+            );
+            const result = list_elements.map((item) => ({
+              cover_img_url: item
+                .getElementsByTagName('img')[0]
+                .src.replace('140y140', '512y512'),
 
-            title: item
-              .getElementsByTagName('div')[0]
-              .getElementsByTagName('a')[0].title,
-            id: `neplaylist_${getParameterByName(
-              'id',
-              item.getElementsByTagName('div')[0].getElementsByTagName('a')[0]
-                .href
-            )}`,
-            source_url: `https://music.163.com/#/playlist?id=${getParameterByName(
-              'id',
-              item.getElementsByTagName('div')[0].getElementsByTagName('a')[0]
-                .href
-            )}`,
-          }));
-          return fn({
-            result,
-          });
-        });
+              title: item
+                .getElementsByTagName('div')[0]
+                .getElementsByTagName('a')[0].title,
+              id: `neplaylist_${getParameterByName(
+                'id',
+                item.getElementsByTagName('div')[0].getElementsByTagName('a')[0]
+                  .href
+              )}`,
+              source_url: `https://music.163.com/#/playlist?id=${getParameterByName(
+                'id',
+                item.getElementsByTagName('div')[0].getElementsByTagName('a')[0]
+                  .href
+              )}`,
+            }));
+            return fn({
+              result,
+            });
+          })
+          .catch(failure);
       },
     };
   }
@@ -311,7 +318,7 @@ class netease {
     // special thanks for @Binaryify
     // https://github.com/Binaryify/NeteaseCloudMusicApi
     return {
-      success: (fn) => {
+      success: (fn, failure = () => {}) => {
         const list_id = getParameterByName('list_id', url).split('_').pop();
         const target_url = 'https://music.163.com/weapi/v3/playlist/detail';
         const d = {
@@ -324,45 +331,49 @@ class netease {
         };
         const data = this.weapi(d);
         this.ne_ensure_cookie(() => {
-          axios.post(target_url, new URLSearchParams(data)).then((response) => {
-            const { data: res_data } = response;
-            const info = {
-              id: `neplaylist_${list_id}`,
-              cover_img_url: res_data.playlist.coverImgUrl,
-              title: res_data.playlist.name,
-              source_url: `https://music.163.com/#/playlist?id=${list_id}`,
-            };
-            const max_allow_size = 1000;
-            const trackIdsArray = this.split_array(
-              res_data.playlist.trackIds,
-              max_allow_size
-            );
+          axios
+            .post(target_url, new URLSearchParams(data))
+            .then((response) => {
+              const { data: res_data } = response;
+              const info = {
+                id: `neplaylist_${list_id}`,
+                cover_img_url: res_data.playlist.coverImgUrl,
+                title: res_data.playlist.name,
+                source_url: `https://music.163.com/#/playlist?id=${list_id}`,
+              };
+              const max_allow_size = 1000;
+              const trackIdsArray = this.split_array(
+                res_data.playlist.trackIds,
+                max_allow_size
+              );
 
-            function ng_parse_playlist_tracks_wrapper(trackIds, callback) {
-              return netease.ng_parse_playlist_tracks(trackIds, callback);
-            }
-
-            async.concat(
-              trackIdsArray,
-              ng_parse_playlist_tracks_wrapper,
-              (err, tracks) => {
-                fn({ tracks, info });
+              function ng_parse_playlist_tracks_wrapper(trackIds, callback) {
+                return netease.ng_parse_playlist_tracks(trackIds, callback);
               }
-            );
 
-            // request every tracks to fetch song info
-            // async_process_list(res_data.playlist.trackIds, ng_render_playlist_result_item,
-            //   (err, tracks) => fn({
-            //     tracks,
-            //     info,
-            //   }));
-          });
+              async.concat(
+                trackIdsArray,
+                ng_parse_playlist_tracks_wrapper,
+                (err, tracks) => {
+                  fn({ tracks, info });
+                }
+              );
+
+              // request every tracks to fetch song info
+              // async_process_list(res_data.playlist.trackIds, ng_render_playlist_result_item,
+              //   (err, tracks) => fn({
+              //     tracks,
+              //     info,
+              //   }));
+            })
+            .catch(failure);
         });
       },
     };
   }
 
-  static bootstrap_track(track, success, failure) {
+  static bootstrap_track(track, success, failure, options = {}) {
+    const request = RequestTask.http(options);
     // Player bootstrapping is provider-specific: convert a Listen1 track into a
     // short-lived playable media URL, or call failure to let MediaService try
     // cross-provider fallback.
@@ -389,20 +400,23 @@ class netease {
         expirationDate: expire,
       },
       (cookie) => {
-        axios.post(target_url, new URLSearchParams(data)).then((response) => {
-          const { data: res_data } = response;
-          const { url, br } = res_data.data[0];
-          if (url != null) {
-            sound.url = url;
-            const bitrate = `${(br / 1000).toFixed(0)}kbps`;
-            sound.bitrate = bitrate;
-            sound.platform = 'netease';
+        request
+          .post(target_url, new URLSearchParams(data))
+          .then((response) => {
+            const { data: res_data } = response;
+            const { url, br } = res_data.data[0];
+            if (url != null) {
+              sound.url = url;
+              const bitrate = `${(br / 1000).toFixed(0)}kbps`;
+              sound.bitrate = bitrate;
+              sound.platform = 'netease';
 
-            success(sound);
-          } else {
-            failure(sound);
-          }
-        });
+              success(sound);
+            } else {
+              failure(sound);
+            }
+          })
+          .catch(failure);
       }
     );
   }
@@ -411,7 +425,8 @@ class netease {
     return song.fee !== 4 && song.fee !== 1;
   }
 
-  static search(url) {
+  static search(url, options = {}) {
+    const request = RequestTask.http(options);
     // use chrome extension to modify referer.
     const target_url = 'https://music.163.com/api/search/pc';
     const keyword = getParameterByName('keywords', url);
@@ -428,16 +443,25 @@ class netease {
       type: ne_search_type,
     };
     return {
-      success: (fn) => {
+      success: (fn, failure = () => {}) => {
         this.ne_ensure_cookie(() => {
-          axios
+          request
             .post(target_url, new URLSearchParams(req_data))
             .then((response) => {
               const { data } = response;
+              if (!data || typeof data !== 'object')
+                throw new TypeError('Invalid search response');
+              if (data.code !== undefined && data.code !== 200) {
+                const code =
+                  { 301: 'AUTH_REQUIRED', 429: 'RATE_LIMIT' }[data.code] ||
+                  'SERVICE_ERROR';
+                failure({ code, businessCode: data.code });
+                return undefined;
+              }
               let result = [];
               let total = 0;
               if (searchType === '0') {
-                result = data.result.songs.map((song_info) => ({
+                result = (data.result?.songs || []).map((song_info) => ({
                   id: `netrack_${song_info.id}`,
                   title: song_info.name,
                   artist: song_info.artists[0].name,
@@ -450,9 +474,9 @@ class netease {
                   // url: `netrack_${song_info.id}`,
                   url: !this.is_playable(song_info) ? '' : undefined,
                 }));
-                total = data.result.songCount;
+                total = data.result?.songCount || 0;
               } else if (searchType === '1') {
-                result = data.result.playlists.map((info) => ({
+                result = (data.result?.playlists || []).map((info) => ({
                   id: `neplaylist_${info.id}`,
                   title: info.name,
                   source: 'netease',
@@ -462,7 +486,7 @@ class netease {
                   author: info.creator.nickname,
                   count: info.trackCount,
                 }));
-                total = data.result.playlistCount;
+                total = data.result?.playlistCount || 0;
               }
 
               return fn({
@@ -471,13 +495,7 @@ class netease {
                 type: searchType,
               });
             })
-            .catch(() =>
-              fn({
-                result: [],
-                total: 0,
-                type: searchType,
-              })
-            );
+            .catch(failure);
         });
       },
     };
@@ -489,33 +507,36 @@ class netease {
     const target_url = `https://music.163.com/api/album/${album_id}`;
 
     return {
-      success: (fn) => {
-        axios.get(target_url).then((response) => {
-          const { data } = response;
-          const info = {
-            cover_img_url: data.album.picUrl,
-            title: data.album.name,
-            id: `nealbum_${data.album.id}`,
-            source_url: `https://music.163.com/#/album?id=${data.album.id}`,
-          };
+      success: (fn, failure = () => {}) => {
+        axios
+          .get(target_url)
+          .then((response) => {
+            const { data } = response;
+            const info = {
+              cover_img_url: data.album.picUrl,
+              title: data.album.name,
+              id: `nealbum_${data.album.id}`,
+              source_url: `https://music.163.com/#/album?id=${data.album.id}`,
+            };
 
-          const tracks = data.album.songs.map((song_info) => ({
-            id: `netrack_${song_info.id}`,
-            title: song_info.name,
-            artist: song_info.artists[0].name,
-            artist_id: `neartist_${song_info.artists[0].id}`,
-            album: song_info.album.name,
-            album_id: `nealbum_${song_info.album.id}`,
-            source: 'netease',
-            source_url: `https://music.163.com/#/song?id=${song_info.id}`,
-            img_url: song_info.album.picUrl,
-            url: !this.is_playable(song_info) ? '' : undefined,
-          }));
-          return fn({
-            tracks,
-            info,
-          });
-        });
+            const tracks = data.album.songs.map((song_info) => ({
+              id: `netrack_${song_info.id}`,
+              title: song_info.name,
+              artist: song_info.artists[0].name,
+              artist_id: `neartist_${song_info.artists[0].id}`,
+              album: song_info.album.name,
+              album_id: `nealbum_${song_info.album.id}`,
+              source: 'netease',
+              source_url: `https://music.163.com/#/song?id=${song_info.id}`,
+              img_url: song_info.album.picUrl,
+              url: !this.is_playable(song_info) ? '' : undefined,
+            }));
+            return fn({
+              tracks,
+              info,
+            });
+          })
+          .catch(failure);
       },
     };
   }
@@ -526,34 +547,37 @@ class netease {
     const target_url = `https://music.163.com/api/artist/${artist_id}`;
 
     return {
-      success: (fn) => {
-        axios.get(target_url).then((response) => {
-          const { data } = response;
-          const info = {
-            cover_img_url: data.artist.picUrl,
-            title: data.artist.name,
-            id: `neartist_${data.artist.id}`,
-            source_url: `https://music.163.com/#/artist?id=${data.artist.id}`,
-          };
+      success: (fn, failure = () => {}) => {
+        axios
+          .get(target_url)
+          .then((response) => {
+            const { data } = response;
+            const info = {
+              cover_img_url: data.artist.picUrl,
+              title: data.artist.name,
+              id: `neartist_${data.artist.id}`,
+              source_url: `https://music.163.com/#/artist?id=${data.artist.id}`,
+            };
 
-          const tracks = data.hotSongs.map((song_info) => ({
-            id: `netrack_${song_info.id}`,
-            title: song_info.name,
-            artist: song_info.artists[0].name,
-            artist_id: `neartist_${song_info.artists[0].id}`,
-            album: song_info.album.name,
-            album_id: `nealbum_${song_info.album.id}`,
-            source: 'netease',
-            source_url: `https://music.163.com/#/song?id=${song_info.id}`,
-            img_url: song_info.album.picUrl,
-            // url: `netrack_${song_info.id}`,
-            url: !this.is_playable(song_info) ? '' : undefined,
-          }));
-          return fn({
-            tracks,
-            info,
-          });
-        });
+            const tracks = data.hotSongs.map((song_info) => ({
+              id: `netrack_${song_info.id}`,
+              title: song_info.name,
+              artist: song_info.artists[0].name,
+              artist_id: `neartist_${song_info.artists[0].id}`,
+              album: song_info.album.name,
+              album_id: `nealbum_${song_info.album.id}`,
+              source: 'netease',
+              source_url: `https://music.163.com/#/song?id=${song_info.id}`,
+              img_url: song_info.album.picUrl,
+              // url: `netrack_${song_info.id}`,
+              url: !this.is_playable(song_info) ? '' : undefined,
+            }));
+            return fn({
+              tracks,
+              info,
+            });
+          })
+          .catch(failure);
       },
     };
   }
@@ -571,36 +595,39 @@ class netease {
     };
     const data = this.weapi(d);
     return {
-      success: (fn) => {
-        axios.post(target_url, new URLSearchParams(data)).then((response) => {
-          const { data: res_data } = response;
-          let lrc = '';
-          let tlrc = '';
-          if (res_data.lrc != null) {
-            lrc = res_data.lrc.lyric;
-          }
-          if (res_data.tlyric != null && res_data.tlyric.lyric != null) {
-            // eslint-disable-next-line no-control-regex
-            tlrc = res_data.tlyric.lyric.replace(/(|\\)/g, '');
-            tlrc = tlrc.replace(/[\u2005]+/g, ' ');
-          }
-          return fn({
-            lyric: lrc,
-            tlyric: tlrc,
-          });
-        });
+      success: (fn, failure = () => {}) => {
+        axios
+          .post(target_url, new URLSearchParams(data))
+          .then((response) => {
+            const { data: res_data } = response;
+            let lrc = '';
+            let tlrc = '';
+            if (res_data.lrc != null) {
+              lrc = res_data.lrc.lyric;
+            }
+            if (res_data.tlyric != null && res_data.tlyric.lyric != null) {
+              // eslint-disable-next-line no-control-regex
+              tlrc = res_data.tlyric.lyric.replace(/(|\\)/g, '');
+              tlrc = tlrc.replace(/[\u2005]+/g, ' ');
+            }
+            return fn({
+              lyric: lrc,
+              tlyric: tlrc,
+            });
+          })
+          .catch(failure);
       },
     };
   }
 
   static parse_url(url) {
     let result;
-    let id = '';
+    let id;
     // eslint-disable-next-line no-param-reassign
     url = url.replace(
       'music.163.com/#/discover/toplist?',
       'music.163.com/#/playlist?'
-    ); // eslint-disable-line no-param-reassign
+    );
     url = url.replace('music.163.com/#/my/m/music/', 'music.163.com/'); // eslint-disable-line no-param-reassign
     url = url.replace('music.163.com/#/m/', 'music.163.com/'); // eslint-disable-line no-param-reassign
     url = url.replace('music.163.com/#/', 'music.163.com/'); // eslint-disable-line no-param-reassign
@@ -851,7 +878,7 @@ class netease {
     };
 
     return {
-      success: (fn) => {
+      success: (fn, failure = () => {}) => {
         axios
           .post(target_url, new URLSearchParams(req_data))
           .then((response) => {
@@ -877,7 +904,8 @@ class netease {
                 playlists,
               },
             });
-          });
+          })
+          .catch(failure);
       },
     };
   }
@@ -902,7 +930,7 @@ class netease {
     const encrypt_req_data = this.weapi(req_data);
 
     return {
-      success: (fn) => {
+      success: (fn, failure = () => {}) => {
         axios
           .post(target_url, new URLSearchParams(encrypt_req_data))
           .then((response) => {
@@ -922,7 +950,8 @@ class netease {
                 playlists,
               },
             });
-          });
+          })
+          .catch(failure);
       },
     };
   }
@@ -932,29 +961,32 @@ class netease {
 
     const encrypt_req_data = this.weapi({});
     return {
-      success: (fn) => {
-        axios.post(url, new URLSearchParams(encrypt_req_data)).then((res) => {
-          let result = { is_login: false };
-          let status = 'fail';
-          if (res.data.account !== null) {
-            status = 'success';
-            const { data } = res;
-            result = {
-              is_login: true,
-              user_id: data.account.id,
-              user_name: data.account.userName,
-              nickname: data.profile.nickname,
-              avatar: data.profile.avatarUrl,
-              platform: 'netease',
-              data,
-            };
-          }
+      success: (fn, failure = () => {}) => {
+        axios
+          .post(url, new URLSearchParams(encrypt_req_data))
+          .then((res) => {
+            let result = { is_login: false };
+            let status = 'fail';
+            if (res.data.account !== null) {
+              status = 'success';
+              const { data } = res;
+              result = {
+                is_login: true,
+                user_id: data.account.id,
+                user_name: data.account.userName,
+                nickname: data.profile.nickname,
+                avatar: data.profile.avatarUrl,
+                platform: 'netease',
+                data,
+              };
+            }
 
-          return fn({
-            status,
-            data: result,
-          });
-        });
+            return fn({
+              status,
+              data: result,
+            });
+          })
+          .catch(failure);
       },
     };
   }

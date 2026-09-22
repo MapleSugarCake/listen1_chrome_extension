@@ -1,4 +1,3 @@
-/* eslint-disable consistent-return */
 /* eslint-disable no-param-reassign */
 /* eslint-disable no-unused-vars */
 
@@ -17,7 +16,7 @@ function getParameterByName(name, url) {
 // These helpers hide the small API differences so provider modules can stay
 // platform-agnostic.
 function isElectron() {
-  return window && window.process && window.process.type;
+  return !!window.listen1Desktop;
 }
 
 function cookieGet(cookieRequest, callback) {
@@ -26,16 +25,10 @@ function cookieGet(cookieRequest, callback) {
       callback(cookie);
     });
   }
-  const remote = require('@electron/remote'); // eslint-disable-line
-  remote.session.defaultSession.cookies
-    .get(cookieRequest)
-    .then((cookieArray) => {
-      let cookie = null;
-      if (cookieArray.length > 0) {
-        [cookie] = cookieArray;
-      }
-      callback(cookie);
-    });
+  return window.listen1Desktop
+    .cookieGet(cookieRequest)
+    .then(callback)
+    .catch(() => callback(null));
 }
 
 function cookieSet(cookie, callback) {
@@ -44,10 +37,10 @@ function cookieSet(cookie, callback) {
       callback(arg1, arg2);
     });
   }
-  const remote = require('@electron/remote'); // eslint-disable-line
-  remote.session.defaultSession.cookies.set(cookie).then((arg1, arg2) => {
-    callback(null, arg1, arg2);
-  });
+  return window.listen1Desktop
+    .cookieSet(cookie)
+    .then(() => callback(null))
+    .catch((error) => callback(null, error));
 }
 function cookieRemove(cookie, callback) {
   if (!isElectron()) {
@@ -55,12 +48,10 @@ function cookieRemove(cookie, callback) {
       callback(arg1, arg2);
     });
   }
-  const remote = require('@electron/remote'); // eslint-disable-line
-  remote.session.defaultSession.cookies
-    .remove(cookie.url, cookie.name)
-    .then((arg1, arg2) => {
-      callback(null, arg1, arg2);
-    });
+  return window.listen1Desktop
+    .cookieRemove(cookie)
+    .then(() => callback(null))
+    .catch((error) => callback(null, error));
 }
 
 function setPrototypeOfLocalStorage() {
@@ -70,7 +61,7 @@ function setPrototypeOfLocalStorage() {
     try {
       return value && JSON.parse(value);
     } catch (error) {
-      return {};
+      return null;
     }
   };
   proto.setObject = function setObject(key, value) {
@@ -83,7 +74,12 @@ function setPrototypeOfLocalStorage() {
 // values such as `false` while still falling back for missing keys.
 function getLocalStorageValue(key, defaultValue) {
   const keyString = localStorage.getItem(key);
-  let result = keyString && JSON.parse(keyString);
+  let result;
+  try {
+    result = keyString && JSON.parse(keyString);
+  } catch {
+    return defaultValue;
+  }
   if (result === null) {
     result = defaultValue;
   }

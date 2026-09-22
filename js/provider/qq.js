@@ -1,6 +1,8 @@
-/* eslint-disable no-use-before-define */
+/* global RequestTask */
+/* exported qq */
+
 /* global getParameterByName cookieGet cookieRemove */
-// eslint-disable-next-line no-unused-vars
+
 // Provider modules expose static methods so MediaService can route requests by
 // item-id prefix without constructing provider instances.
 class qq {
@@ -19,20 +21,23 @@ class qq {
       'https://c.y.qq.com/v8/fcg-bin/fcg_myqq_toplist.fcg?g_tk=5381&inCharset=utf-8&outCharset=utf-8&notice=0&format=json&uin=0&needNewCode=1&platform=h5';
 
     return {
-      success: (fn) => {
-        axios.get(url).then((response) => {
-          const result = [];
-          response.data.data.topList.forEach((item) => {
-            const playlist = {
-              cover_img_url: item.picUrl,
-              id: `qqtoplist_${item.id}`,
-              source_url: `https://y.qq.com/n/yqq/toplist/${item.id}.html`,
-              title: item.topTitle,
-            };
-            result.push(playlist);
-          });
-          return fn({ result });
-        });
+      success: (fn, failure = () => {}) => {
+        axios
+          .get(url)
+          .then((response) => {
+            const result = [];
+            response.data.data.topList.forEach((item) => {
+              const playlist = {
+                cover_img_url: item.picUrl,
+                id: `qqtoplist_${item.id}`,
+                source_url: `https://y.qq.com/n/yqq/toplist/${item.id}.html`,
+                title: item.topTitle,
+              };
+              result.push(playlist);
+            });
+            return fn({ result });
+          })
+          .catch(failure);
       },
     };
   }
@@ -55,21 +60,24 @@ class qq {
       `&categoryId=${filterId}&sortId=5&sin=${offset}&ein=${29 + offset}`;
 
     return {
-      success: (fn) => {
-        axios.get(target_url).then((response) => {
-          const { data } = response;
+      success: (fn, failure = () => {}) => {
+        axios
+          .get(target_url)
+          .then((response) => {
+            const { data } = response;
 
-          const playlists = data.data.list.map((item) => ({
-            cover_img_url: item.imgurl,
-            title: this.htmlDecode(item.dissname),
-            id: `qqplaylist_${item.dissid}`,
-            source_url: `https://y.qq.com/n/ryqq/playlist/${item.dissid}`,
-          }));
+            const playlists = data.data.list.map((item) => ({
+              cover_img_url: item.imgurl,
+              title: this.htmlDecode(item.dissname),
+              id: `qqplaylist_${item.dissid}`,
+              source_url: `https://y.qq.com/n/ryqq/playlist/${item.dissid}`,
+            }));
 
-          return fn({
-            result: playlists,
-          });
-        });
+            return fn({
+              result: playlists,
+            });
+          })
+          .catch(failure);
       },
     };
   }
@@ -191,74 +199,79 @@ class qq {
     const list_id = Number(getParameterByName('list_id', url).split('_').pop());
 
     return {
-      success: (fn) => {
+      success: (fn, failure = () => {}) => {
         this.get_periods(list_id).then((listPeriod) => {
           const limit = 100;
           // TODO: visit all pages of toplist
           const target_url = this.get_toplist_url(list_id, listPeriod, limit);
 
-          axios.get(target_url).then((response) => {
-            const { data } = response;
-            const tracks = data.toplist.data.songInfoList.map((song) => {
-              const d = {
-                id: `qqtrack_${song.mid}`,
-                title: this.htmlDecode(song.name),
-                artist: this.htmlDecode(song.singer[0].name),
-                artist_id: `qqartist_${song.singer[0].mid}`,
-                album: this.htmlDecode(song.album.name),
-                album_id: `qqalbum_${song.album.mid}`,
-                img_url: this.qq_get_image_url(song.album.mid, 'album'),
-                source: 'qq',
-                source_url: `https://y.qq.com/#type=song&mid=${song.mid}&tpl=yqq_song_detail`,
+          axios
+            .get(target_url)
+            .then((response) => {
+              const { data } = response;
+              const tracks = data.toplist.data.songInfoList.map((song) => {
+                const d = {
+                  id: `qqtrack_${song.mid}`,
+                  title: this.htmlDecode(song.name),
+                  artist: this.htmlDecode(song.singer[0].name),
+                  artist_id: `qqartist_${song.singer[0].mid}`,
+                  album: this.htmlDecode(song.album.name),
+                  album_id: `qqalbum_${song.album.mid}`,
+                  img_url: this.qq_get_image_url(song.album.mid, 'album'),
+                  source: 'qq',
+                  source_url: `https://y.qq.com/#type=song&mid=${song.mid}&tpl=yqq_song_detail`,
+                };
+                return d;
+              });
+              const info = {
+                cover_img_url: data.toplist.data.data.frontPicUrl,
+                title: data.toplist.data.data.title,
+                id: `qqtoplist_${list_id}`,
+                source_url: `https://y.qq.com/n/yqq/toplist/${list_id}.html`,
               };
-              return d;
-            });
-            const info = {
-              cover_img_url: data.toplist.data.data.frontPicUrl,
-              title: data.toplist.data.data.title,
-              id: `qqtoplist_${list_id}`,
-              source_url: `https://y.qq.com/n/yqq/toplist/${list_id}.html`,
-            };
-            return fn({
-              tracks,
-              info,
-            });
-          });
+              return fn({
+                tracks,
+                info,
+              });
+            })
+            .catch(failure);
         });
       },
     };
   }
 
   static qq_get_playlist(url) {
-    // eslint-disable-line no-unused-vars
     const list_id = getParameterByName('list_id', url).split('_').pop();
 
     return {
-      success: (fn) => {
+      success: (fn, failure = () => {}) => {
         const target_url =
           'https://i.y.qq.com/qzone-music/fcg-bin/fcg_ucc_getcdinfo_' +
           'byids_cp.fcg?type=1&json=1&utf8=1&onlysong=0' +
           `&nosign=1&disstid=${list_id}&g_tk=5381&loginUin=0&hostUin=0` +
           '&format=json&inCharset=GB2312&outCharset=utf-8&notice=0' +
           '&platform=yqq&needNewCode=0';
-        axios.get(target_url).then((response) => {
-          const { data } = response;
+        axios
+          .get(target_url)
+          .then((response) => {
+            const { data } = response;
 
-          const info = {
-            cover_img_url: data.cdlist[0].logo,
-            title: data.cdlist[0].dissname,
-            id: `qqplaylist_${list_id}`,
-            source_url: `https://y.qq.com/n/ryqq/playlist/${list_id}`,
-          };
+            const info = {
+              cover_img_url: data.cdlist[0].logo,
+              title: data.cdlist[0].dissname,
+              id: `qqplaylist_${list_id}`,
+              source_url: `https://y.qq.com/n/ryqq/playlist/${list_id}`,
+            };
 
-          const tracks = data.cdlist[0].songlist.map((item) =>
-            this.qq_convert_song(item)
-          );
-          return fn({
-            tracks,
-            info,
-          });
-        });
+            const tracks = data.cdlist[0].songlist.map((item) =>
+              this.qq_convert_song(item)
+            );
+            return fn({
+              tracks,
+              info,
+            });
+          })
+          .catch(failure);
       },
     };
   }
@@ -267,30 +280,33 @@ class qq {
     const album_id = getParameterByName('list_id', url).split('_').pop();
 
     return {
-      success: (fn) => {
+      success: (fn, failure = () => {}) => {
         const target_url =
           'https://i.y.qq.com/v8/fcg-bin/fcg_v8_album_info_cp.fcg' +
           `?platform=h5page&albummid=${album_id}&g_tk=938407465` +
           '&uin=0&format=json&inCharset=utf-8&outCharset=utf-8' +
           '&notice=0&platform=h5&needNewCode=1&_=1459961045571';
-        axios.get(target_url).then((response) => {
-          const { data } = response;
+        axios
+          .get(target_url)
+          .then((response) => {
+            const { data } = response;
 
-          const info = {
-            cover_img_url: this.qq_get_image_url(album_id, 'album'),
-            title: data.data.name,
-            id: `qqalbum_${album_id}`,
-            source_url: `https://y.qq.com/#type=album&mid=${album_id}`,
-          };
+            const info = {
+              cover_img_url: this.qq_get_image_url(album_id, 'album'),
+              title: data.data.name,
+              id: `qqalbum_${album_id}`,
+              source_url: `https://y.qq.com/#type=album&mid=${album_id}`,
+            };
 
-          const tracks = data.data.list.map((item) =>
-            this.qq_convert_song(item)
-          );
-          return fn({
-            tracks,
-            info,
-          });
-        });
+            const tracks = data.data.list.map((item) =>
+              this.qq_convert_song(item)
+            );
+            return fn({
+              tracks,
+              info,
+            });
+          })
+          .catch(failure);
       },
     };
   }
@@ -299,7 +315,7 @@ class qq {
     const artist_id = getParameterByName('list_id', url).split('_').pop();
 
     return {
-      success: (fn) => {
+      success: (fn, failure = () => {}) => {
         const target_url = `https://u.y.qq.com/cgi-bin/musicu.fcg?format=json&loginUin=0&hostUin=0inCharset=utf8&outCharset=utf-8&platform=yqq.json&needNewCode=0&data=${encodeURIComponent(
           JSON.stringify({
             comm: {
@@ -319,30 +335,34 @@ class qq {
           })
         )}`;
 
-        axios.get(target_url).then((response) => {
-          const { data } = response;
+        axios
+          .get(target_url)
+          .then((response) => {
+            const { data } = response;
 
-          const info = {
-            cover_img_url: this.qq_get_image_url(artist_id, 'artist'),
-            title: data.singer.data.singer_info.name,
-            id: `qqartist_${artist_id}`,
-            source_url: `https://y.qq.com/#type=singer&mid=${artist_id}`,
-          };
+            const info = {
+              cover_img_url: this.qq_get_image_url(artist_id, 'artist'),
+              title: data.singer.data.singer_info.name,
+              id: `qqartist_${artist_id}`,
+              source_url: `https://y.qq.com/#type=singer&mid=${artist_id}`,
+            };
 
-          const tracks = data.singer.data.songlist.map((item) =>
-            this.qq_convert_song2(item)
-          );
-          return fn({
-            tracks,
-            info,
-          });
-        });
+            const tracks = data.singer.data.songlist.map((item) =>
+              this.qq_convert_song2(item)
+            );
+            return fn({
+              tracks,
+              info,
+            });
+          })
+          .catch(failure);
       },
     };
   }
 
-  static search(url) {
-    // eslint-disable-line no-unused-vars
+  static search(url, options = {}) {
+    const request = RequestTask.http(options);
+
     const keyword = getParameterByName('keywords', url);
     const curpage = getParameterByName('curpage', url);
     const searchType = getParameterByName('type', url);
@@ -357,7 +377,7 @@ class qq {
     };
 
     return {
-      success: (fn) => {
+      success: (fn, failure = () => {}) => {
         const limit = 50;
         const page = curpage;
         const query = {
@@ -378,34 +398,42 @@ class qq {
             },
           },
         };
-        axios.post(target_url, query).then((response) => {
-          const { data } = response;
-          let result = [];
-          let total = 0;
-          if (searchType === '0') {
-            result = data.req.data.body.song.list.map((item) =>
-              this.qq_convert_song2(item)
-            );
-            total = data.req.data.meta.sum;
-          } else if (searchType === '1') {
-            result = data.req.data.body.songlist.list.map((info) => ({
-              id: `qqplaylist_${info.dissid}`,
-              title: this.htmlDecode(info.dissname),
-              source: 'qq',
-              source_url: `https://y.qq.com/n/ryqq/playlist/${info.dissid}`,
-              img_url: info.imgurl,
-              url: `qqplaylist_${info.dissid}`,
-              author: this.UnicodeToAscii(info.creator.name),
-              count: info.song_count,
-            }));
-            total = data.req.data.meta.sum;
-          }
-          return fn({
-            result,
-            total,
-            type: searchType,
-          });
-        });
+        request
+          .post(target_url, query)
+          .then((response) => {
+            const { data } = response;
+            const businessCode = data?.code || data?.req?.code;
+            if (businessCode) {
+              failure({ code: 'SERVICE_ERROR', businessCode });
+              return undefined;
+            }
+            let result = [];
+            let total = 0;
+            if (searchType === '0') {
+              result = data.req.data.body.song.list.map((item) =>
+                this.qq_convert_song2(item)
+              );
+              total = data.req.data.meta.sum;
+            } else if (searchType === '1') {
+              result = data.req.data.body.songlist.list.map((info) => ({
+                id: `qqplaylist_${info.dissid}`,
+                title: this.htmlDecode(info.dissname),
+                source: 'qq',
+                source_url: `https://y.qq.com/n/ryqq/playlist/${info.dissid}`,
+                img_url: info.imgurl,
+                url: `qqplaylist_${info.dissid}`,
+                author: this.UnicodeToAscii(info.creator.name),
+                count: info.song_count,
+              }));
+              total = data.req.data.meta.sum;
+            }
+            return fn({
+              result,
+              total,
+              type: searchType,
+            });
+          })
+          .catch(failure);
       },
     };
   }
@@ -418,8 +446,8 @@ class qq {
     return result;
   }
 
-  // eslint-disable-next-line no-unused-vars
-  static bootstrap_track(track, success, failure) {
+  static bootstrap_track(track, success, failure, options = {}) {
+    const request = RequestTask.http(options);
     const sound = {};
     const songId = track.id.slice('qqtrack_'.length);
     const target_url = 'https://u.y.qq.com/cgi-bin/musicu.fcg';
@@ -484,27 +512,37 @@ class qq {
         cv: 0,
       },
     };
-    axios.post(target_url, reqData).then((response) => {
-      const { data } = response;
-      const { purl } = data.req_1.data.midurlinfo[0];
+    request
+      .post(target_url, reqData)
+      .then((response) => {
+        const { data } = response;
+        const detail = data.req_1;
+        if (!detail?.data?.midurlinfo?.length) {
+          failure({
+            code: 'INVALID_RESPONSE',
+            businessCode: detail?.code ?? data.code,
+          });
+          return;
+        }
+        const { purl } = detail.data.midurlinfo[0];
 
-      if (purl === '') {
-        // vip
-        failure(sound);
-        return;
-      }
-      const url = data.req_1.data.sip[0] + purl;
-      sound.url = url;
-      const prefix = purl.slice(0, 4);
-      const found = Object.values(fileConfig).filter((i) => i.s === prefix);
-      sound.bitrate = found.length > 0 ? found[0].bitrate : '';
-      sound.platform = 'qq';
+        if (purl === '') {
+          // An empty vkey is not enough evidence to label a track as VIP-only.
+          failure({ code: 'RESOURCE_UNAVAILABLE', businessCode: detail.code });
+          return;
+        }
+        const url = data.req_1.data.sip[0] + purl;
+        sound.url = url;
+        const prefix = purl.slice(0, 4);
+        const found = Object.values(fileConfig).filter((i) => i.s === prefix);
+        sound.bitrate = found.length > 0 ? found[0].bitrate : '';
+        sound.platform = 'qq';
 
-      success(sound);
-    });
+        success(sound);
+      })
+      .catch(failure);
   }
 
-  // eslint-disable-next-line no-unused-vars
   static str2ab(str) {
     // string to array buffer.
     const buf = new ArrayBuffer(str.length);
@@ -516,23 +554,25 @@ class qq {
   }
 
   static lyric(url) {
-    // eslint-disable-line no-unused-vars
     const track_id = getParameterByName('track_id', url).split('_').pop();
     // use chrome extension to modify referer.
     const target_url =
       'https://i.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg?' +
       `songmid=${track_id}&g_tk=5381&format=json&inCharset=utf8&outCharset=utf-8&nobase64=1`;
     return {
-      success: (fn) => {
-        axios.get(target_url).then((response) => {
-          const { data } = response;
-          const lrc = data.lyric || '';
-          const tlrc = data.trans.replace(/\/\//g, '') || '';
-          return fn({
-            lyric: lrc,
-            tlyric: tlrc,
-          });
-        });
+      success: (fn, failure = () => {}) => {
+        axios
+          .get(target_url)
+          .then((response) => {
+            const { data } = response;
+            const lrc = data.lyric || '';
+            const tlrc = data.trans.replace(/\/\//g, '') || '';
+            return fn({
+              lyric: lrc,
+              tlyric: tlrc,
+            });
+          })
+          .catch(failure);
       },
     };
   }
@@ -617,34 +657,37 @@ class qq {
       '&notice=0&platform=yqq.json&needNewCode=0';
 
     return {
-      success: (fn) => {
-        axios.get(target_url).then((response) => {
-          const { data } = response;
-          const all = [];
-          data.data.categories.forEach((cate) => {
-            const result = { category: cate.categoryGroupName, filters: [] };
-            if (cate.usable === 1) {
-              cate.items.forEach((item) => {
-                result.filters.push({
-                  id: item.categoryId,
-                  name: this.htmlDecode(item.categoryName),
+      success: (fn, failure = () => {}) => {
+        axios
+          .get(target_url)
+          .then((response) => {
+            const { data } = response;
+            const all = [];
+            data.data.categories.forEach((cate) => {
+              const result = { category: cate.categoryGroupName, filters: [] };
+              if (cate.usable === 1) {
+                cate.items.forEach((item) => {
+                  result.filters.push({
+                    id: item.categoryId,
+                    name: this.htmlDecode(item.categoryName),
+                  });
                 });
-              });
-              all.push(result);
-            }
-          });
-          const recommendLimit = 8;
-          const recommend = [
-            { id: '', name: '全部' },
-            { id: 'toplist', name: '排行榜' },
-            ...all[1].filters.slice(0, recommendLimit),
-          ];
+                all.push(result);
+              }
+            });
+            const recommendLimit = 8;
+            const recommend = [
+              { id: '', name: '全部' },
+              { id: 'toplist', name: '排行榜' },
+              ...all[1].filters.slice(0, recommendLimit),
+            ];
 
-          return fn({
-            recommend,
-            all,
-          });
-        });
+            return fn({
+              recommend,
+              all,
+            });
+          })
+          .catch(failure);
       },
     };
   }
@@ -690,42 +733,45 @@ class qq {
     const target_url = `https://c.y.qq.com/rsc/fcgi-bin/fcg_user_created_diss?cv=4747474&ct=24&format=json&inCharset=utf-8&outCharset=utf-8&notice=0&platform=yqq.json&needNewCode=1&uin=${user_id}&hostuin=${user_id}&sin=0&size=${size}`;
 
     return {
-      success: (fn) => {
-        axios.get(target_url).then((response) => {
-          const playlists = [];
-          response.data.data.disslist.forEach((item) => {
-            let playlist = {};
-            if (item.dir_show === 0) {
-              if (item.tid === 0) {
-                return;
-              }
-              if (item.diss_name === '我喜欢') {
+      success: (fn, failure = () => {}) => {
+        axios
+          .get(target_url)
+          .then((response) => {
+            const playlists = [];
+            response.data.data.disslist.forEach((item) => {
+              let playlist;
+              if (item.dir_show === 0) {
+                if (item.tid === 0) {
+                  return;
+                }
+                if (item.diss_name === '我喜欢') {
+                  playlist = {
+                    cover_img_url:
+                      'https://y.gtimg.cn/mediastyle/y/img/cover_love_300.jpg',
+                    id: `qqplaylist_${item.tid}`,
+                    source_url: `https://y.qq.com/n/ryqq/playlist/${item.tid}`,
+                    title: item.diss_name,
+                  };
+                  playlists.push(playlist);
+                }
+              } else {
                 playlist = {
-                  cover_img_url:
-                    'https://y.gtimg.cn/mediastyle/y/img/cover_love_300.jpg',
+                  cover_img_url: item.diss_cover,
                   id: `qqplaylist_${item.tid}`,
                   source_url: `https://y.qq.com/n/ryqq/playlist/${item.tid}`,
                   title: item.diss_name,
                 };
                 playlists.push(playlist);
               }
-            } else {
-              playlist = {
-                cover_img_url: item.diss_cover,
-                id: `qqplaylist_${item.tid}`,
-                source_url: `https://y.qq.com/n/ryqq/playlist/${item.tid}`,
-                title: item.diss_name,
-              };
-              playlists.push(playlist);
-            }
-          });
-          return fn({
-            status: 'success',
-            data: {
-              playlists,
-            },
-          });
-        });
+            });
+            return fn({
+              status: 'success',
+              data: {
+                playlists,
+              },
+            });
+          })
+          .catch(failure);
       },
     };
   }
@@ -745,29 +791,31 @@ class qq {
       ein: size,
     };
     return {
-      success: (fn) => {
-        axios.get(target_url, { params: data }).then((response) => {
-          const playlists = [];
-          response.data.data.cdlist.forEach((item) => {
-            let playlist = {};
-            if (item.dir_show === 0) {
-              return;
-            }
-            playlist = {
-              cover_img_url: item.logo,
-              id: `qqplaylist_${item.dissid}`,
-              source_url: `https://y.qq.com/n/ryqq/playlist/${item.dissid}`,
-              title: item.dissname,
-            };
-            playlists.push(playlist);
-          });
-          return fn({
-            status: 'success',
-            data: {
-              playlists,
-            },
-          });
-        });
+      success: (fn, failure = () => {}) => {
+        axios
+          .get(target_url, { params: data })
+          .then((response) => {
+            const playlists = [];
+            response.data.data.cdlist.forEach((item) => {
+              if (item.dir_show === 0) {
+                return;
+              }
+              const playlist = {
+                cover_img_url: item.logo,
+                id: `qqplaylist_${item.dissid}`,
+                source_url: `https://y.qq.com/n/ryqq/playlist/${item.dissid}`,
+                title: item.dissname,
+              };
+              playlists.push(playlist);
+            });
+            return fn({
+              status: 'success',
+              data: {
+                playlists,
+              },
+            });
+          })
+          .catch(failure);
       },
     };
   }
@@ -790,25 +838,28 @@ class qq {
     )}`;
 
     return {
-      success: (fn) => {
-        axios.get(target_url).then((response) => {
-          const playlists = [];
-          response.data.recomPlaylist.data.v_hot.forEach((item) => {
-            const playlist = {
-              cover_img_url: item.cover,
-              id: `qqplaylist_${item.content_id}`,
-              source_url: `https://y.qq.com/n/ryqq/playlist/${item.content_id}`,
-              title: item.title,
-            };
-            playlists.push(playlist);
-          });
-          return fn({
-            status: 'success',
-            data: {
-              playlists,
-            },
-          });
-        });
+      success: (fn, failure = () => {}) => {
+        axios
+          .get(target_url)
+          .then((response) => {
+            const playlists = [];
+            response.data.recomPlaylist.data.v_hot.forEach((item) => {
+              const playlist = {
+                cover_img_url: item.cover,
+                id: `qqplaylist_${item.content_id}`,
+                source_url: `https://y.qq.com/n/ryqq/playlist/${item.content_id}`,
+                title: item.title,
+              };
+              playlists.push(playlist);
+            });
+            return fn({
+              status: 'success',
+              data: {
+                playlists,
+              },
+            });
+          })
+          .catch(failure);
       },
     };
   }

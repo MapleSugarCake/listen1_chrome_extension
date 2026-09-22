@@ -1,4 +1,5 @@
 {
+  "_ERROR_PAYMENT_REQUIRED": "플랫폼에서 결제가 필요합니다. 공식 사이트에서 확인하세요.",
   "HELLO": "안녕하세요",
   "_ALL_MUSIC": "모든 음악",
   "_NETEASE_MUSIC": "Netease",
@@ -170,5 +171,25 @@
   "_PROTOCOL": "Protocol",
   "_HOST": "Host",
   "_PORT": "Port",
-  "ZOOM_IN_OUT": "확대/축소"
+  "ZOOM_IN_OUT": "확대/축소",
+  "_PREVIOUS_PAGE": "이전",
+  "_NEXT_PAGE": "다음",
+  "_SEARCH_PENDING": "검색 중",
+  "_SEARCH_SUCCESS": "완료",
+  "_SEARCH_EMPTY": "결과 없음",
+  "_ERROR_TIMEOUT": "요청 시간이 초과되었습니다. 다시 시도하세요.",
+  "_ERROR_NETWORK": "네트워크 연결에 실패했습니다.",
+  "_ERROR_AUTH_REQUIRED": "플랫폼 로그인 창에서 로그인하세요.",
+  "_ERROR_RATE_LIMIT": "요청이 너무 많습니다. 나중에 다시 시도하세요.",
+  "_ERROR_ACCESS_DENIED": "플랫폼이 요청을 거부했습니다. 로그인 상태를 확인하세요.",
+  "_ERROR_RESOURCE_UNAVAILABLE": "재생 가능한 리소스가 없습니다.",
+  "_ERROR_INVALID_RESPONSE": "플랫폼 응답 형식이 올바르지 않습니다.",
+  "_ERROR_SERVICE_ERROR": "플랫폼 서비스를 사용할 수 없습니다.",
+  "_ERROR_MEDIA_ERROR": "오디오 로딩 또는 디코딩에 실패했습니다.",
+  "_ERROR_UNKNOWN": "요청에 실패했습니다. 나중에 다시 시도하세요.",
+  "_ERROR_UNSUPPORTED": "지원하지 않는 작업입니다.",
+  "_ERROR_CANCELLED": "요청이 취소되었습니다.",
+  "_ERROR_ALL_SOURCES_FAILED": "원본 및 대체 플랫폼에 재생 가능한 리소스가 없습니다.",
+  "_LOCAL_IMPORT_PARTIAL": "일부 태그를 읽을 수 없어 파일 이름으로 가져왔습니다.",
+  "_LOCAL_IMPORT_FAILED": "로컬 음악 가져오기에 실패했습니다."
 }

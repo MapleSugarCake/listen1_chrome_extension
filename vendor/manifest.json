@@ -1,0 +1,102 @@
+{
+  "js/vendor/axios.min.js": {
+    "package": "axios",
+    "version": "1.20.0",
+    "source": "dist/axios.min.js",
+    "registry": "https://registry.npmjs.org/axios/1.20.0",
+    "repository": "https://github.com/axios/axios.git",
+    "license": "MIT",
+    "licenseFile": "vendor/licenses/axios.txt",
+    "sha256": "7c433c881c3b0903317193a0dd5af714ce0f65cf77d5c7f067f18b96f0e8e2c7"
+  },
+  "js/vendor/howler.core.min.js": {
+    "package": "howler",
+    "version": "2.2.4",
+    "source": "dist/howler.core.min.js",
+    "registry": "https://registry.npmjs.org/howler/2.2.4",
+    "repository": "git://github.com/goldfire/howler.js.git",
+    "license": "MIT",
+    "licenseFile": "vendor/licenses/howler.txt",
+    "sha256": "e7b836445d8c44bddc99b7678fa336a9d5c5ede27cc709c5fae8b1748ba7431b"
+  },
+  "js/vendor/angular.min.js": {
+    "package": "angular",
+    "version": "1.8.3",
+    "source": "angular.min.js",
+    "registry": "https://registry.npmjs.org/angular/1.8.3",
+    "repository": "https://github.com/angular/angular.js.git",
+    "license": "MIT",
+    "licenseFile": "vendor/licenses/angular.txt",
+    "sha256": "396dc1a03d6cc02e9c51a80246e0db53c5c8df9bd07287e3b51bce4a29dab355"
+  },
+  "js/vendor/i18next.min.js": {
+    "package": "i18next",
+    "version": "26.4.2",
+    "source": "dist/umd/i18next.min.js",
+    "registry": "https://registry.npmjs.org/i18next/26.4.2",
+    "repository": "https://github.com/i18next/i18next.git",
+    "license": "MIT",
+    "licenseFile": "vendor/licenses/i18next.txt",
+    "sha256": "eb0dd6d72e8f756b90faf864853af2a17870fe97b54473b7c34494870c65901c"
+  },
+  "js/vendor/i18nextHttpBackend.min.js": {
+    "package": "i18next-http-backend",
+    "version": "4.0.2",
+    "source": "i18nextHttpBackend.min.js",
+    "registry": "https://registry.npmjs.org/i18next-http-backend/4.0.2",
+    "repository": "git@github.com:i18next/i18next-http-backend.git",
+    "license": "MIT",
+    "licenseFile": "vendor/licenses/i18next-http-backend.txt",
+    "sha256": "a276443198d2079e5d1ed99acc2586420ae935d5551b66989a2a320eccb45126"
+  },
+  "js/vendor/hotkeys.min.js": {
+    "package": "hotkeys-js",
+    "version": "4.0.8",
+    "source": "esbuild browser bundle (see scripts/build-vendor.cjs)",
+    "registry": "https://registry.npmjs.org/hotkeys-js/4.0.8",
+    "repository": "git+https://github.com/jaywcjlove/hotkeys-js.git",
+    "license": "MIT",
+    "licenseFile": "vendor/licenses/hotkeys-js.txt",
+    "sha256": "cfe02bb493793426674d0f9c9b606ad0d5eda042b7d42bd8115f528502979cdc"
+  },
+  "js/vendor/async.min.js": {
+    "package": "async",
+    "version": "3.2.6",
+    "source": "dist/async.min.js",
+    "registry": "https://registry.npmjs.org/async/3.2.6",
+    "repository": "https://github.com/caolan/async.git",
+    "license": "MIT",
+    "licenseFile": "vendor/licenses/async.txt",
+    "sha256": "b83cd6b669b52bf5c137cd4db0a437771a74285de3cfb5cf3bc1775800345a18"
+  },
+  "js/vendor/lru-cache.min.js": {
+    "package": "lru-cache",
+    "version": "11.5.3",
+    "source": "esbuild browser bundle (see scripts/build-vendor.cjs)",
+    "registry": "https://registry.npmjs.org/lru-cache/11.5.3",
+    "repository": "git+ssh://git@github.com/isaacs/node-lru-cache.git",
+    "license": "BlueOak-1.0.0",
+    "licenseFile": "vendor/licenses/lru-cache.txt",
+    "sha256": "90f8051847988770c8d1659a81b0dabafeb37ae4c7b79fbad39c5352373ac0f0"
+  },
+  "js/vendor/notyf.min.js": {
+    "package": "notyf",
+    "version": "3.10.0",
+    "source": "notyf.min.js",
+    "registry": "https://registry.npmjs.org/notyf/3.10.0",
+    "repository": "https://github.com/caroso1222/notyf.git",
+    "license": "MIT",
+    "licenseFile": "vendor/licenses/notyf.txt",
+    "sha256": "52796990c2dab1a4f1d99aa8bf105751c4398eade829769967569610d3451131"
+  },
+  "css/notyf.min.css": {
+    "package": "notyf",
+    "version": "3.10.0",
+    "source": "notyf.min.css",
+    "registry": "https://registry.npmjs.org/notyf/3.10.0",
+    "repository": "https://github.com/caroso1222/notyf.git",
+    "license": "MIT",
+    "licenseFile": "vendor/licenses/notyf.txt",
+    "sha256": "23092f64d442ff74b6e8ed605b08c120d9ab3d9e3362f3d7e33ffdf0e2961e44"
+  }
+}

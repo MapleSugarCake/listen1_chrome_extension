@@ -35,6 +35,7 @@
       src="js/vendor/forge_listen1_fork.min.js"
     ></script>
     <script type="text/javascript" src="js/vendor/axios.min.js"></script>
+    <script src="js/request.js"></script>
     <script type="text/javascript" src="js/vendor/notyf.min.js"></script>
     <script type="text/javascript" src="js/vendor/howler.core.min.js"></script>
     <script type="text/javascript" src="js/vendor/hotkeys.min.js"></script>
@@ -778,7 +779,7 @@
                                   </li>
                                   <li
                                     ng-if="searchType===0"
-                                    ng-repeat="song in result"
+                                    ng-repeat="song in result track by (song.source + ':' + song.id)"
                                     ng-class-odd="'odd'"
                                     ng-class-even="'even'"
                                     ng-mouseenter="options=true"
@@ -869,9 +870,10 @@
                                 </ul>
                                 <div
                                   class="search-pagination"
-                                  ng-show="totalpage>1"
+                                  ng-show="curpage > 1 || hasMore"
                                   pagination
                                 ></div>
+                                <search-status></search-status>
                               </div>
                             </div>
                           </div>
@@ -2830,7 +2832,7 @@
                                 <li
                                   ng-class="{ 'isSearchType':isSearchType(0),'playing': currentPlaying.id == song.id }"
                                   ng-if="searchType===0"
-                                  ng-repeat="song in result"
+                                  ng-repeat="song in result track by (song.source + ':' + song.id)"
                                   ng-mouseenter="options=true"
                                   ng-mouseleave="options=false"
                                   ng-dblclick="addAndPlay(song)"
@@ -2951,9 +2953,10 @@
                               </ul>
                               <div
                                 class="search-pagination"
-                                ng-show="totalpage>1"
+                                ng-show="curpage > 1 || hasMore"
                                 pagination
                               ></div>
+                              <search-status></search-status>
                             </div>
                           </div>
                         </div>
