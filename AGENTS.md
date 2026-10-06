@@ -56,6 +56,10 @@ Provider 路由依赖原有前缀：netease `ne`、qq `qq`、kugou `kg`、kuwo `
 
 MediaService 保留 `.success(fn)`，相关网络入口补充 `.error(fn)`、`.cancel()`、`.promise`；搜索还支持 `.onProgress(fn)`。旧 provider 的 `{ success(fn, failure) }` 通过 `RequestTask.legacy` 包装。`bootstrap_track(track, success, failure, { signal })` 保留回调并接收取消信号。内部 `/search?...` 等 URL 是参数载体，不是本地业务服务器。
 
+推荐歌单同样返回 RequestTask，不具备对应能力的来源返回 `UNSUPPORTED`。网易账号及创建、收藏、推荐歌单请求将任务的 AbortSignal 传给 Axios，校验业务码和必要结构；业务码 200 且 `account:null` 表示正常未登录，缺失结构返回 `INVALID_RESPONSE`。账号查询失败保留上一成功数据并显示状态未确认；确认游客、退出或切换账号会清理对应歌单。账号与歌单控制器在刷新、分类切换及销毁时取消任务，并用请求代次拒绝迟到响应。隔离登录窗口和手动登录完成确认保持不变。
+
+单平台歌曲与歌单搜索在 MediaService 对当前页按 `source:id` 稳定去重，保留首次记录和顺序；未知总数时用去重前的响应长度判断下一页，已知总数、页大小和显式 `hasMore` 保持原有语义。诊断只记录来源、阶段、固定接口名、错误码及数值型 HTTP/业务码、重复数量，不展开响应、账号、凭据或回跳 URL。
+
 单请求默认 15 秒；单曲原平台及自动换源总预算 30 秒。HTTP、业务错误、认证、限流、网络、资源不可用和格式异常分开处理，取消不弹失败提示。聚合搜索按到达顺序追加并按来源/ID 去重，保留已显示顺序，发布各来源状态，慢平台有终止机制。搜索控制器保持 500ms 输入防抖，并对关键词、平台、类型、页码使用代次检查和取消。列表/歌词也拦截旧请求，避免跨页面或跨曲目覆盖。
 
 | 数据     | 约定                                                                                           |
@@ -74,9 +78,13 @@ MediaService 保留 `.success(fn)`，相关网络入口补充 `.error(fn)`、`.c
 
 队列按 ID 去重，批量入队只发一次队列快照和必要 LOAD；清空/删除当前项会取消解析并卸载 Howler。快照去掉 howl，不能持久化实例。`l1Player` 音量是 0～100，核心是 0～1；UI 播放模式 0/1/2 对应 all/shuffle/one。
 
+桌面音量均衡默认关闭，使用 `loudness.js` 的 100 ms RMS 有效片段平均电平，`normalized_audio.js` 的完整资产准备与 AudioBuffer 播放。`standard` 最多 1 dB 声道联动限峰，`dynamic` 仅固定增益；共同目标仅在本次运行中下调。主音量在均衡后，音量／静音不能改变测量和均衡增益。`BG_PLAYER:LOUDNESS` 发布关闭、等待、分析中、生效、未均衡或失败状态；临时读取失败重试一次后暂停，明确不可处理才回退。分析、播放实例和测量缓存不进入曲目快照；代次／曲目／实际地址／模式使迟到结果失效。术语见 [GLOSSARY](GLOSSARY.md)。
+
 ## 5. 持久化与界面
 
 保留 playerlists、favoriteplayerlists、各歌单 ID、`lmplaylist_reserve`、`current-playing`、`player-settings`、theme/language/openSidebar、enable_*、auto_choose_source_list 和 float_window_setting 等键。损坏 JSON 返回空值供调用方兜底，不清空原存储；恢复队列过滤无效项。本地 ID 仍为 `lmtrack_` 加原路径，文件 URL 由桌面层编码。
+
+`loudness-settings` 独立保存 `{ enabled, mode }`，避免旧控制器保存 `player-settings` 时覆盖均衡设置。RMS 摘要最多 128 个，仅在本次页面运行中保留；解码缓冲仅保留当前资产。两套布局使用同一个 `loudness-control` 指令，按钮在 `volume-wheel` 容器之外；主题重建从核心获取真实状态，销毁时移除状态、键盘、外部点击和语言订阅。浏览器扩展保持默认 Howler 行为，此次桌面专用桥不暴露给扩展。
 
 JSON 备份遍历 localStorage，恢复按键合并，不先清空；Gist 只显式排除部分键，不保证脱敏。认证键如 githubOauthAccessKey、lastfmtoken、lastfmsession 的实际值不能进入日志或测试。备份不包含原音频、electron-store 或完整 Cookie。
 

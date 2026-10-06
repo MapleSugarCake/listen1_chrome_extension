@@ -148,6 +148,7 @@ const main = () => {
   ]);
 
   l1Player.injectDirectives(app);
+  window.injectLoudnessControl(app);
 
   app.filter(
     'playmode_title',

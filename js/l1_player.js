@@ -55,6 +55,12 @@
    * @type {Object}
    */
   const l1Player = {
+    setLoudness(settings) {
+      getPlayerAsync(mode, (player) => player.setLoudness(settings));
+    },
+    requestLoudness() {
+      getPlayerAsync(mode, (player) => player.sendLoudnessEvent());
+    },
     status: {
       muted: myPlayer.muted,
       volume: myPlayer.volume * 100,
@@ -111,7 +117,7 @@
          * @returns {void} 无返回值。
          */
         (player) => {
-          if (player.playing) {
+          if (player.playing || player.preparingPlayback) {
             player.pause();
           } else {
             player.play();
@@ -739,6 +745,8 @@
         };
       } else if (msg.type === 'BG_PLAYER:PLAYLIST') {
         l1Player.status.playlist = msg.data || [];
+      } else if (msg.type === 'BG_PLAYER:LOUDNESS') {
+        l1Player.status.loudness = msg.data;
       }
       if (res !== undefined) {
         res();

@@ -83,6 +83,24 @@
       this._media_expiry = {};
       this._loadTimer = null;
       this._loadRetries = new Map();
+      this.loudness = { enabled: false, mode: 'standard', status: 'off' };
+      if (window.listen1Desktop && window.localStorage) {
+        try {
+          const saved = JSON.parse(
+            window.localStorage.getItem('loudness-settings')
+          );
+          this.loudness.enabled = saved?.enabled === true;
+          this.loudness.mode =
+            saved?.mode === 'dynamic' ? 'dynamic' : 'standard';
+          this.loudness.status = this.loudness.enabled ? 'idle' : 'off';
+        } catch {
+          /* Invalid optional settings keep the defaults. */
+        }
+      }
+      this._analysis = null;
+      this._normalizer = null;
+      this._prepared = null;
+      this._resumePosition = null;
     }
 
     /**
@@ -92,10 +110,133 @@
      */
     cancelPending() {
       this._generation += 1;
+      this._normalizer?.cancel();
+      this._analysis = null;
       const pending = this._pending;
       this._pending = null;
       if (pending && pending.task) pending.task.cancel();
       clearTimeout(this._loadTimer);
+    }
+
+    get preparingPlayback() {
+      return !!this._analysis?.playNow;
+    }
+
+    sendLoudnessEvent() {
+      playerSendMessage(this.mode, {
+        type: 'BG_PLAYER:LOUDNESS',
+        data: { ...this.loudness },
+      });
+    }
+
+    updateLoudness(status, extra = {}) {
+      this.loudness = {
+        enabled: this.loudness.enabled,
+        mode: this.loudness.mode,
+        status: this.loudness.enabled ? status : 'off',
+        trackId: this.currentAudio?.id,
+        ...extra,
+      };
+      this.sendLoudnessEvent();
+    }
+
+    setLoudness(settings) {
+      if (!window.listen1Desktop) return;
+      const enabled = settings.enabled === true;
+      const mode = settings.mode === 'dynamic' ? 'dynamic' : 'standard';
+      if (enabled === this.loudness.enabled && mode === this.loudness.mode)
+        return;
+      const playNow =
+        this.playing || this.preparingPlayback || !!this._pending?.playNow;
+      const materialized =
+        !!this.currentHowl ||
+        !!this._analysis ||
+        this.loudness.status === 'error';
+      if (this.currentHowl)
+        this._resumePosition = { seconds: this.currentHowl.seek() };
+      this.cancelPending();
+      if (this.currentHowl) this.currentHowl.unload();
+      if (this.currentAudio) this.currentAudio.howl = null;
+      this._prepared = null;
+      this.loudness.enabled = enabled;
+      this.loudness.mode = mode;
+      try {
+        window.localStorage.setItem(
+          'loudness-settings',
+          JSON.stringify({ enabled, mode })
+        );
+      } catch {
+        /* Playback remains usable when optional persistence is unavailable. */
+      }
+      this.updateLoudness('idle');
+      if (this.currentAudio && (playNow || materialized)) {
+        if (this._media_uri_list[this.currentAudio.id])
+          this.finishLoad(this.index, playNow, !enabled);
+        else this.retrieveMediaUrl(this.index, playNow);
+      }
+    }
+
+    async prepareLoudness(index, playNow) {
+      if (this._analysis) {
+        this._analysis.playNow = playNow || this._analysis.playNow;
+        return;
+      }
+      const track = this.currentAudio;
+      const url = this._media_uri_list[track.id];
+      const { mode } = this.loudness;
+      this._prepared = null;
+      if (track.howl) {
+        this._resumePosition = { seconds: track.howl.seek() };
+        track.howl.unload();
+        track.howl = null;
+      }
+      this.cancelPending();
+      const generation = this._generation;
+      const task = { playNow };
+      this._analysis = task;
+      const isCurrent = () =>
+        generation === this._generation &&
+        track === this.currentAudio &&
+        url === this._media_uri_list[track.id] &&
+        this.loudness.enabled &&
+        mode === this.loudness.mode;
+      this.updateLoudness('analyzing');
+      this.sendPlayingEvent('Analyzing');
+      try {
+        if (!this._normalizer)
+          this._normalizer = new window.listen1NormalizedAudio.Normalizer();
+        const prepared = await this._normalizer.prepare(
+          track,
+          url,
+          mode,
+          isCurrent,
+          (phase) => {
+            if (isCurrent()) this.updateLoudness('analyzing', { phase });
+          }
+        );
+        if (!isCurrent()) return;
+        this._normalizer.targets[mode] = prepared.targetDb;
+        this._prepared = prepared;
+        this._analysis = null;
+        this.updateLoudness('active', {
+          targetDb: prepared.targetDb,
+          gainDb: prepared.gainDb,
+          outputDb: prepared.outputDb,
+          reductionDb: prepared.reductionDb,
+        });
+        this.finishLoad(this.index, task.playNow, true);
+      } catch (error) {
+        if (!isCurrent()) return;
+        this._analysis = null;
+        const reason = error.code || 'RESOURCE_LIMIT';
+        if (window.listen1NormalizedAudio.skipped.has(reason)) {
+          this.updateLoudness('skipped', { reason });
+          this.finishLoad(this.index, task.playNow, true);
+        } else {
+          this.updateLoudness('error', { reason });
+          this.sendPlayingEvent('AnalysisFailed');
+        }
+      }
     }
 
     /**
@@ -287,7 +428,8 @@
         return;
       }
       // 修改队列前保存当前播放状态。
-      const isPlaying = this.playing || !!this._pending;
+      const isPlaying =
+        this.playing || !!this._pending || this.preparingPlayback;
       const trackId = this.currentAudio && this.currentAudio.id;
       const removed = this.playlist[idx];
       if (removed.id === trackId) this.cancelPending();
@@ -403,6 +545,8 @@
      * @returns {void} 无返回值。
      */
     stopAll() {
+      if (this._pending || this._analysis) this.cancelPending();
+      this._resumePosition = null;
       this.playlist.forEach(
         /**
          * 逐项处理 this.playlist 中的条目，执行 i.howl.stop。
@@ -423,6 +567,10 @@
      * @returns {void} 无返回值。
      */
     unloadAll() {
+      this._prepared = null;
+      this._resumePosition = null;
+      this._normalizer?.dropDecoded();
+      this.updateLoudness('idle');
       this.playlist.forEach(
         /**
          * 逐项处理 this.playlist 中的条目，更新 track.howl，执行 track.howl.unload。
@@ -547,10 +695,13 @@
       this.cancelPending();
       const generation = this._generation;
       if (track.howl) {
+        if (this.loudness.enabled)
+          this._resumePosition = { seconds: track.howl.seek() };
         track.howl.unload();
         track.howl = null;
       }
-      const pending = { id: track.id, task: null };
+      this._prepared = null;
+      const pending = { id: track.id, task: null, playNow };
       this._pending = pending;
       /**
        * 检查播放代次和当前曲目是否仍与本次异步操作一致。
@@ -642,9 +793,20 @@
      * @param playNow 加载成功后是否立即播放。
      * @returns {void} 无返回值。
      */
-    finishLoad(index, playNow) {
+    finishLoad(index, playNow, ready = false) {
       const data = this.playlist[index];
       if (!data || data !== this.currentAudio) return;
+      if (
+        this.loudness.enabled &&
+        !ready &&
+        (!data.howl?.normalized ||
+          this._prepared?.source !== this._media_uri_list[data.id] ||
+          this._prepared?.targetDb !==
+            this._normalizer?.targets[this.loudness.mode])
+      ) {
+        this.prepareLoudness(index, playNow);
+        return;
+      }
 
       // 已有对应 Howl 时复用，
       // 否则创建新的音频实例。
@@ -664,6 +826,13 @@
        */
       const failLoad = (err) => {
         if (!isCurrent()) return;
+        if (self.loudness.enabled) {
+          clearTimeout(self._loadTimer);
+          if (self.loudness.status !== 'skipped')
+            self.updateLoudness('error', { reason: 'PLAYBACK_ERROR' });
+          self.sendPlayingEvent('Error');
+          return;
+        }
         clearTimeout(self._loadTimer);
         if (data.howl) data.howl.unload();
         data.howl = null;
@@ -683,7 +852,7 @@
         self.skip('next');
       };
       if (!data.howl) {
-        data.howl = new Howl({
+        const options = {
           src: [self._media_uri_list[data.id]],
           format: 'mp3', // 明确格式以绕过 Howl 对 URL 扩展名的检查，参见问题 #1200。
           volume: 1,
@@ -706,12 +875,14 @@
                 album: `Listen 1  •  ${(
                   self.currentAudio.album || '<???>'
                 ).padEnd(100)}`,
-                artwork: [
-                  {
-                    src: self.currentAudio.img_url,
-                    sizes: '500x500',
-                  },
-                ],
+                artwork: self.currentAudio.img_url
+                  ? [
+                      {
+                        src: self.currentAudio.img_url,
+                        sizes: '500x500',
+                      },
+                    ]
+                  : [],
               });
             }
             self.currentAudio.disabled = false;
@@ -726,6 +897,14 @@
            */
           onload() {
             if (!isCurrent()) return;
+            if (self._resumePosition) {
+              const position = self._resumePosition;
+              self._resumePosition = null;
+              self.currentHowl.seek(
+                position.seconds ??
+                  self.currentHowl.duration() * position.fraction
+              );
+            }
             self.currentAudio.disabled = false;
             self.sendPlayingEvent('Loaded');
           },
@@ -802,7 +981,23 @@
           onplayerror(id, err) {
             failLoad(err);
           },
-        });
+        };
+        data.howl = this._prepared
+          ? new window.listen1NormalizedAudio.BufferAudio(
+              options,
+              this._prepared,
+              this._normalizer.context,
+              this.volume,
+              this.muted
+            )
+          : new Howl(options);
+        if (data.howl.normalized && this._resumePosition) {
+          const position = this._resumePosition;
+          this._resumePosition = null;
+          data.howl.seek(
+            position.seconds ?? data.howl.duration() * position.fraction
+          );
+        }
       }
 
       if (playNow) {
@@ -843,6 +1038,11 @@
      * @returns {void} 无返回值。
      */
     pause() {
+      if (this._analysis) {
+        this._analysis.playNow = false;
+        this.sendPlayingEvent('Paused');
+        return;
+      }
       if (this._pending) this.cancelPending();
       clearTimeout(this._loadTimer);
       if (!this.currentHowl) return;
@@ -973,6 +1173,8 @@
       // 更新影响所有 Howl 实例的全局音量。
       if (typeof val === 'number') {
         Howler.volume(val);
+        this.currentHowl?.setMaster?.(this.volume, this.muted);
+        window.listen1NormalizedAudio?.syncMaster?.(this.volume, this.muted);
         this.sendVolumeEvent();
         this.sendFrameUpdate();
       }
@@ -1008,6 +1210,8 @@
      */
     mute() {
       Howler.mute(true);
+      this.currentHowl?.setMaster?.(this.volume, true);
+      window.listen1NormalizedAudio?.syncMaster?.(this.volume, true);
       playerSendMessage(this.mode, {
         type: 'BG_PLAYER:MUTE',
         data: true,
@@ -1021,6 +1225,8 @@
      */
     unmute() {
       Howler.mute(false);
+      this.currentHowl?.setMaster?.(this.volume, false);
+      window.listen1NormalizedAudio?.syncMaster?.(this.volume, false);
       playerSendMessage(this.mode, {
         type: 'BG_PLAYER:MUTE',
         data: false,
@@ -1033,6 +1239,10 @@
      * @returns {void} 无返回值。
      */
     seek(per) {
+      if (this._analysis) {
+        this._resumePosition = { fraction: Math.max(0, Math.min(1, per)) };
+        return;
+      }
       if (!this.currentHowl) return;
 
       // 取得当前待操作的 Howl 实例。
@@ -1051,6 +1261,10 @@
      * @returns {void} 无返回值。
      */
     seekTime(seconds) {
+      if (this._analysis) {
+        this._resumePosition = { seconds: Math.max(0, seconds) };
+        return;
+      }
       if (!this.currentHowl) return;
       const audio = this.currentHowl;
       audio.seek(seconds);
@@ -1076,8 +1290,24 @@
      */
     setMediaURI(uri, url) {
       if (url) {
+        const changed =
+          this.loudness.enabled &&
+          this.currentAudio?.id === url &&
+          this._media_uri_list[url] &&
+          this._media_uri_list[url] !== uri;
+        const playNow = this.playing || this.preparingPlayback;
+        const materialized = !!this.currentHowl || !!this._analysis;
+        if (changed) {
+          if (this.currentHowl)
+            this._resumePosition = { seconds: this.currentHowl.seek() };
+          this.cancelPending();
+          if (this.currentHowl) this.currentHowl.unload();
+          this.currentAudio.howl = null;
+          this._prepared = null;
+        }
         this._media_uri_list[url] = uri;
         this._media_expiry[url] = Date.now() + 5 * 60 * 1000;
+        if (changed && materialized) this.finishLoad(this.index, playNow);
       }
     }
 

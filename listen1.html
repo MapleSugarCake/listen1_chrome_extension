@@ -18,6 +18,7 @@
     <link href="css/notyf_custom.css" rel="stylesheet" />
 
     <link href="css/hotkeys.css" rel="stylesheet" />
+    <link href="css/loudness.css" rel="stylesheet" />
     <link href="css/icon.css" rel="stylesheet" />
 
     <link href="css/origin.css" rel="stylesheet" id="theme-css" />
@@ -61,10 +62,13 @@
     <script type="text/javascript" src="js/provider/localmusic.js"></script>
 
     <script type="text/javascript" src="js/bridge.js"></script>
+    <script type="text/javascript" src="js/loudness.js"></script>
+    <script type="text/javascript" src="js/normalized_audio.js"></script>
     <script type="text/javascript" src="js/player_thread.js"></script>
     <script type="text/javascript" src="js/myplaylist.js"></script>
     <script type="text/javascript" src="js/loweb.js"></script>
     <script type="text/javascript" src="js/l1_player.js"></script>
+    <script type="text/javascript" src="js/loudness_control.js"></script>
     <script type="text/javascript" src="js/app.js"></script>
     <script type="text/javascript" src="js/controller/profile.js"></script>
     <script type="text/javascript" src="js/controller/auth.js"></script>
@@ -635,6 +639,22 @@
                           ng-show="current_tag==6 && is_window_hidden==1"
                           ng-controller="PlatformController"
                         >
+                          <div
+                            class="request-status"
+                            role="status"
+                            ng-if="platformLoading || platformError || (myPlatformUser.platform && !myPlatformPlaylists.length)"
+                          >
+                            <p ng-if="platformLoading">{{_REQUEST_LOADING}}</p>
+                            <p ng-if="platformError">{{platformErrorMessage}}</p>
+                            <button ng-if="platformError" ng-click="loadPlatformPlaylists()">
+                              {{_REQUEST_RETRY}}
+                            </button>
+                            <p
+                              ng-if="myPlatformUser.platform && !platformLoading && !platformError && !myPlatformPlaylists.length"
+                            >
+                              {{_PLATFORM_PLAYLIST_EMPTY}}
+                            </p>
+                          </div>
                           <div class="source-list" ng-show="is_window_hidden==1">
                             <div
                               ng-repeat-start="source in ::platformSourceList"
@@ -1498,6 +1518,19 @@
                         >
                           <div class="login">
                             <div ng-repeat="source in loginSourceList">
+                              <div
+                                class="request-status"
+                                role="status"
+                                ng-if="authStatus[source].loading || authStatus[source].error"
+                              >
+                                <p ng-if="authStatus[source].loading">{{_REQUEST_LOADING}}</p>
+                                <p ng-if="authStatus[source].error">
+                                  {{_ACCOUNT_UNCONFIRMED}}：{{authStatus[source].message}}
+                                </p>
+                                <button ng-if="authStatus[source].error" ng-click="refreshAuthStatus(source)">
+                                  {{_REQUEST_RETRY}}
+                                </button>
+                              </div>
                               <div ng-show="is_login(source)">
                                 <div class="usercard">
                                   <img ng-src="{{musicAuth[source].avatar}}" />
@@ -1967,6 +2000,7 @@
                           class="icon li-list"
                         ></span>
                       </div>
+                      <div loudness-control></div>
                       <div class="volume-ctrl" volume-wheel="">
                         <span
                           class="icon"
@@ -2677,6 +2711,22 @@
                         ng-show="current_tag==6 && is_window_hidden==1"
                         ng-controller="PlatformController"
                       >
+                        <div
+                          class="request-status"
+                          role="status"
+                          ng-if="platformLoading || platformError || (myPlatformUser.platform && !myPlatformPlaylists.length)"
+                        >
+                          <p ng-if="platformLoading">{{_REQUEST_LOADING}}</p>
+                          <p ng-if="platformError">{{platformErrorMessage}}</p>
+                          <button ng-if="platformError" ng-click="loadPlatformPlaylists()">
+                            {{_REQUEST_RETRY}}
+                          </button>
+                          <p
+                            ng-if="myPlatformUser.platform && !platformLoading && !platformError && !myPlatformPlaylists.length"
+                          >
+                            {{_PLATFORM_PLAYLIST_EMPTY}}
+                          </p>
+                        </div>
                         <div class="source-list" ng-show="is_window_hidden==1">
                           <div
                             ng-repeat-start="source in ::platformSourceList"
@@ -3592,6 +3642,19 @@
                       >
                         <div class="login">
                           <div ng-repeat="source in loginSourceList">
+                            <div
+                              class="request-status"
+                              role="status"
+                              ng-if="authStatus[source].loading || authStatus[source].error"
+                            >
+                              <p ng-if="authStatus[source].loading">{{_REQUEST_LOADING}}</p>
+                              <p ng-if="authStatus[source].error">
+                                {{_ACCOUNT_UNCONFIRMED}}：{{authStatus[source].message}}
+                              </p>
+                              <button ng-if="authStatus[source].error" ng-click="refreshAuthStatus(source)">
+                                {{_REQUEST_RETRY}}
+                              </button>
+                            </div>
                             <div ng-show="is_login(source)">
                               <div style="width: 500px;background-color: var(--theme-color-hover);
                               color: var(--theme-color);cursor: default;" class="usercard">
@@ -4099,7 +4162,7 @@
                       </div>    
                     </div>
                   
-                    <div ng-show="playlist.length != 0" class="footertime">
+                    <div ng-show="playlist.length != 0" class="footertime" tabindex="0">
                       <div class="bottomprogressbar">    
                         <div class="playbar">
                           <span class="icon">
@@ -4121,6 +4184,7 @@
                             </div>
                           </div>
                         </div>
+                        <div loudness-control></div>
                         <div class="volume-ctrl" volume-wheel="">
                           <span
                             class="icon"

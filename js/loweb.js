@@ -419,23 +419,40 @@ const MediaService = {
             kuwo: Number(options.type) === 1 ? 30 : 20,
           };
           const pageSize = data.pageSize || pageSizes[source] || 20;
+          const rawCount = data.result.length;
+          const seen = new Set();
+          const result = data.result.filter((track) => {
+            const key = `${track.source}:${track.id}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
+          if (result.length !== rawCount)
+            RequestTask.diagnose({
+              source,
+              stage: 'search',
+              endpoint: 'search',
+              duplicates: rawCount - result.length,
+              count: rawCount,
+            });
           const rawTotal = Number(data.total);
           let total = Number.isFinite(rawTotal) ? rawTotal : null;
           if (data.total == null || (source === 'migu' && rawTotal === 1000))
             total = null;
           resolve({
             ...data,
+            result,
             type: options.type,
             pageSize,
             total,
             hasMore:
               data.hasMore ??
               (total === null
-                ? data.result.length >= pageSize
+                ? rawCount >= pageSize
                 : Number(options.curpage) * pageSize < total),
           });
         },
-        { source, stage: 'search', timeout: 15100 }
+        { source, stage: 'search', endpoint: 'search', timeout: 15100 }
       );
     }
     return RequestTask.create(
@@ -1183,10 +1200,11 @@ const MediaService = {
        * 无参数。
        * @returns {*} provider.get_user 的调用结果。
        */
-      () => provider.get_user(),
+      (context) => provider.get_user(context),
       {
         source,
         stage: 'user',
+        endpoint: 'user',
       }
     );
   },
@@ -1215,10 +1233,11 @@ const MediaService = {
        * 无参数。
        * @returns {*} provider.get_user_created_playlist 的调用结果。
        */
-      () => provider.get_user_created_playlist(url),
+      (context) => provider.get_user_created_playlist(url, context),
       {
         source,
         stage: 'playlists',
+        endpoint: 'created-playlists',
       }
     );
   },
@@ -1238,22 +1257,32 @@ const MediaService = {
        * 无参数。
        * @returns {*} provider.get_user_favorite_playlist 的调用结果。
        */
-      () => provider.get_user_favorite_playlist(url),
+      (context) => provider.get_user_favorite_playlist(url, context),
       {
         source,
         stage: 'playlists',
+        endpoint: 'favorite-playlists',
       }
     );
   },
   /**
    * 请求当前来源的推荐歌单。
    * @param source 音乐来源名称。
-   * @returns {*} provider.get_recommend_playlist 的调用结果。
+   * @returns {Object} 支持成功、失败、取消和 Promise 的请求任务。
    */
   getRecommendPlaylist(source) {
     const provider = getProviderByName(source);
 
-    return provider.get_recommend_playlist();
+    return RequestTask.legacy(
+      (context) => {
+        if (!provider?.get_recommend_playlist)
+          throw Object.assign(new Error('Unsupported operation'), {
+            code: 'UNSUPPORTED',
+          });
+        return provider.get_recommend_playlist(context);
+      },
+      { source, stage: 'playlists', endpoint: 'recommend-playlists' }
+    );
   },
   /**
    * 调用来源的退出逻辑以清理相应认证状态。

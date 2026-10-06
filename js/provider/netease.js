@@ -1418,13 +1418,35 @@ class netease {
     };
   }
 
-  /**
-   * 分页查询用户歌单，按 subscribed 标记区分创建和收藏。
-   * @param url 携带 user_id 查询参数的内部请求地址。
-   * @param playlistType 自建或收藏歌单分类。
-   * @returns {Object} 含 success 回调入口的旧式结果对象；业务数据在调用该入口后传出。
-   */
-  static get_user_playlist(url, playlistType) {
+  /** 校验账号相关接口的业务状态，错误保留公开业务码。 */
+  static ne_account_response(data) {
+    if (!data || typeof data !== 'object' || !Number.isFinite(data.code))
+      throw Object.assign(new Error('Invalid Netease response'), {
+        code: 'INVALID_RESPONSE',
+      });
+    if (data.code !== 200)
+      throw Object.assign(new Error('Netease business failure'), {
+        code:
+          {
+            301: 'AUTH_REQUIRED',
+            401: 'AUTH_REQUIRED',
+            403: 'ACCESS_DENIED',
+            429: 'RATE_LIMIT',
+          }[data.code] || 'SERVICE_ERROR',
+        businessCode: data.code,
+      });
+    return data;
+  }
+
+  static ne_valid_id(id) {
+    return (
+      (typeof id === 'number' && Number.isSafeInteger(id) && id > 0) ||
+      (typeof id === 'string' && /^[1-9]\d*$/.test(id))
+    );
+  }
+
+  static get_user_playlist(url, playlistType, options = {}) {
+    const request = RequestTask.http(options);
     const user_id = getParameterByName('user_id', url);
     const target_url = 'https://music.163.com/api/user/playlist';
 
@@ -1451,7 +1473,7 @@ class netease {
          */
         failure = () => {}
       ) => {
-        axios
+        request
           .post(target_url, new URLSearchParams(req_data))
           .then(
             /**
@@ -1460,8 +1482,22 @@ class netease {
              * @returns {*} fn 回调的直接返回值。
              */
             (response) => {
+              const data = this.ne_account_response(response.data);
+              if (
+                !Array.isArray(data.playlist) ||
+                data.playlist.some(
+                  (item) =>
+                    !item ||
+                    !this.ne_valid_id(item.id) ||
+                    typeof item.name !== 'string' ||
+                    typeof item.subscribed !== 'boolean'
+                )
+              )
+                throw Object.assign(new Error('Invalid Netease playlists'), {
+                  code: 'INVALID_RESPONSE',
+                });
               const playlists = [];
-              response.data.playlist.forEach(
+              data.playlist.forEach(
                 /**
                  * 逐项处理 response.data.playlist 中的条目，执行 playlists.push。
                  * @param item 来自 response.data.playlist 的当前条目；使用 subscribed、coverImgUrl、id、name 字段。
@@ -1501,8 +1537,8 @@ class netease {
    * @param url 待解析或请求的地址；来源适配器使用其中的查询参数。
    * @returns {*} this.get_user_playlist 的调用结果。
    */
-  static get_user_created_playlist(url) {
-    return this.get_user_playlist(url, 'created');
+  static get_user_created_playlist(url, options = {}) {
+    return this.get_user_playlist(url, 'created', options);
   }
 
   /**
@@ -1510,8 +1546,8 @@ class netease {
    * @param url 待解析或请求的地址；来源适配器使用其中的查询参数。
    * @returns {*} this.get_user_playlist 的调用结果。
    */
-  static get_user_favorite_playlist(url) {
-    return this.get_user_playlist(url, 'favorite');
+  static get_user_favorite_playlist(url, options = {}) {
+    return this.get_user_playlist(url, 'favorite', options);
   }
 
   /**
@@ -1519,7 +1555,8 @@ class netease {
    * 无参数。
    * @returns {Object} 含 success 回调入口的旧式结果对象；业务数据在调用该入口后传出。
    */
-  static get_recommend_playlist() {
+  static get_recommend_playlist(options = {}) {
+    const request = RequestTask.http(options);
     const target_url = 'https://music.163.com/weapi/personalized/playlist';
 
     const req_data = {
@@ -1546,7 +1583,7 @@ class netease {
          */
         failure = () => {}
       ) => {
-        axios
+        request
           .post(target_url, new URLSearchParams(encrypt_req_data))
           .then(
             /**
@@ -1555,8 +1592,22 @@ class netease {
              * @returns {*} fn 回调的直接返回值。
              */
             (response) => {
+              const data = this.ne_account_response(response.data);
+              if (
+                !Array.isArray(data.result) ||
+                data.result.some(
+                  (item) =>
+                    !item ||
+                    !this.ne_valid_id(item.id) ||
+                    typeof item.name !== 'string'
+                )
+              )
+                throw Object.assign(
+                  new Error('Invalid Netease recommendations'),
+                  { code: 'INVALID_RESPONSE' }
+                );
               const playlists = [];
-              response.data.result.forEach(
+              data.result.forEach(
                 /**
                  * 逐项处理 response.data.result 中的条目，执行 playlists.push。
                  * @param item 来自 response.data.result 的当前条目；使用 picUrl、id、name 字段。
@@ -1590,7 +1641,8 @@ class netease {
    * 无参数。
    * @returns {Object} 含 success 回调入口的旧式结果对象；业务数据在调用该入口后传出。
    */
-  static get_user() {
+  static get_user(options = {}) {
+    const request = RequestTask.http(options);
     const url = `https://music.163.com/api/nuser/account/get`;
 
     const encrypt_req_data = this.weapi({});
@@ -1610,7 +1662,7 @@ class netease {
          */
         failure = () => {}
       ) => {
-        axios
+        request
           .post(url, new URLSearchParams(encrypt_req_data))
           .then(
             /**
@@ -1619,11 +1671,22 @@ class netease {
              * @returns {*} fn 回调的直接返回值。
              */
             (res) => {
+              const data = this.ne_account_response(res.data);
               let result = { is_login: false };
               let status = 'fail';
-              if (res.data.account !== null) {
+              if (data.account !== null) {
+                if (
+                  !data.account ||
+                  !this.ne_valid_id(data.account.id) ||
+                  typeof data.account.userName !== 'string' ||
+                  !data.profile ||
+                  typeof data.profile.nickname !== 'string' ||
+                  typeof data.profile.avatarUrl !== 'string'
+                )
+                  throw Object.assign(new Error('Invalid Netease account'), {
+                    code: 'INVALID_RESPONSE',
+                  });
                 status = 'success';
-                const { data } = res;
                 result = {
                   is_login: true,
                   user_id: data.account.id,

@@ -24,6 +24,42 @@ const RequestTask = (
      */
     let notify = () => {};
     const instances = new WeakSet();
+    // 仅记录固定接口和数值元信息，不能展开响应、URL 或认证数据。
+    function diagnose(details) {
+      const record = {};
+      const allowed = {
+        source: ['netease', 'qq', 'migu', 'kugou', 'kuwo', 'bilibili', 'taihe'],
+        stage: ['search', 'user', 'playlists'],
+        endpoint: [
+          'search',
+          'user',
+          'created-playlists',
+          'favorite-playlists',
+          'recommend-playlists',
+        ],
+        code: [
+          'AUTH_REQUIRED',
+          'ACCESS_DENIED',
+          'RATE_LIMIT',
+          'SERVICE_ERROR',
+          'NETWORK',
+          'TIMEOUT',
+          'INVALID_RESPONSE',
+          'UNSUPPORTED',
+          'UNKNOWN',
+        ],
+      };
+      Object.entries(allowed).forEach(([key, values]) => {
+        if (values.includes(details[key])) record[key] = details[key];
+      });
+      ['status', 'businessCode', 'duplicates', 'count'].forEach((key) => {
+        if (typeof details[key] === 'number' && Number.isFinite(details[key]))
+          record[key] = details[key];
+      });
+      // 白名单诊断是此处唯一允许输出的日志。
+      // eslint-disable-next-line no-console
+      console.warn('[Listen1 request]', JSON.stringify(record));
+    }
     /**
      * 将网络、超时、取消及业务异常整理为带来源和阶段的统一错误对象。
      * @param error 原始异常或已经规范化的错误；使用 response、code、name、isAxiosError、businessCode 字段。
@@ -32,7 +68,7 @@ const RequestTask = (
      * @returns {Object} 含 code、message、source、stage 等字段的统一错误对象。
      */
     function normalizeError(error, source, stage) {
-      const status = error?.response?.status;
+      const status = error?.response?.status ?? error?.status;
       let code = error?.code;
       if (code === 'ECONNABORTED' || code === 'ETIMEDOUT') code = 'TIMEOUT';
       else if (code === 'ERR_CANCELED' || error?.name === 'AbortError')
@@ -103,7 +139,10 @@ const RequestTask = (
      * @param [options1] 解构参数，包含 source（音乐来源名称）、stage（发生请求或错误的处理阶段）、timeout（最长等待时间，单位为毫秒；默认值为 15000）；默认值为 空对象。
      * @returns {Object} 包含 promise、success、error、onProgress、cancel 等入口的请求任务。
      */
-    function create(executor, { source, stage, timeout = 15000 } = {}) {
+    function create(
+      executor,
+      { source, stage, endpoint, timeout = 15000 } = {}
+    ) {
       const controller = new AbortController();
       const success = [];
       const failure = [];
@@ -146,6 +185,8 @@ const RequestTask = (
         state = next;
         value =
           next === 'success' ? result : normalizeError(result, source, stage);
+        if (next === 'error' && value.code !== 'CANCELLED' && endpoint)
+          diagnose({ ...value, endpoint });
         clearTimeout(timer);
         controller.abort();
         cleanup.splice(0).forEach(
@@ -314,6 +355,7 @@ const RequestTask = (
       create,
       legacy,
       normalizeError,
+      diagnose,
       /**
        * 替换任务状态改变时调用的页面通知器。
        * @param fn 接收处理结果的回调函数。

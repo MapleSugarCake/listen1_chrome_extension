@@ -1812,3 +1812,17 @@ div.visited{
   border-radius: var(--default-border-radius);
 }
 /* 完整歌单分类组件结束。 */
+
+/* 账号和平台歌单请求状态，两套布局共用语义。 */
+.request-status {
+  padding: 12px 16px;
+}
+.request-status:empty {
+  display: none;
+}
+.request-status p {
+  margin: 0 0 8px;
+}
+.request-status button {
+  cursor: pointer;
+}
