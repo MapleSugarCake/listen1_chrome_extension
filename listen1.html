@@ -1,10 +1,15 @@
 <!DOCTYPE html>
+<!--
+文件职责：加载共享播放器、平台适配器和 AngularJS 控制器，声明经典与现代两套页面、歌单弹窗及播放视图。
+
+本文件没有需要逐项列出的文件级定义。
+-->
 <html lang="en" ng-app="listenone">
   <head>
     <meta charset="utf-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <!-- The above 3 meta tags *must* come first in the head; any other head content must come *after* these tags-->
+    <!-- 前三个 meta 标签位于 head 起始处，其余头部内容置于其后。 -->
     <meta name="description" content="" />
     <meta name="author" content="" />
     <title ng-bind="document_title">Listen 1</title>
@@ -93,7 +98,7 @@
             <div>
               <div ng-controller="NavigationController">
                 <div class="wrap">
-                  <!-- dialog-->
+                  <!-- 通用操作弹窗。 -->
                   <div class="shadow" ng-hide="is_dialog_hidden==1"></div>
                   <div
                     class="dialog"
@@ -105,7 +110,7 @@
                       ><span class="dialog-close" ng-click="closeDialog()">×</span>
                     </div>
                     <div class="dialog-body">
-                      <!-- choose playlist dialog-->
+                      <!-- 选择目标歌单。 -->
                       <ul class="dialog-playlist" ng-show="dialog_type==0">
                         <li class="detail-add" ng-click="newDialogOption(1)">
                           <img src="images/mycover.jpg" />
@@ -121,7 +126,7 @@
                           <h2>{{ playlist.info.title }}</h2>
                         </li>
                       </ul>
-                      <!-- create new playlist dialog-->
+                      <!-- 创建歌单弹窗。 -->
                       <div class="dialog-newplaylist" ng-show="dialog_type==1">
                         <input
                           class="form-control"
@@ -144,7 +149,7 @@
                           </button>
                         </div>
                       </div>
-                      <!-- edit playlist dialog-->
+                      <!-- 编辑歌单弹窗。 -->
                       <div class="dialog-editplaylist" ng-show="dialog_type==3">
                         <div class="form-group">
                           <label>{{_PLAYLIST_TITLE}}</label>
@@ -202,7 +207,7 @@
                           </button>
                         </div>
                       </div>
-                      <!-- open playlist dialog-->
+                      <!-- 通过链接打开歌单。 -->
                       <div class="dialog-open-url" ng-show="dialog_type==5">
                         <div class="form-group">
                           <label>{{_PLAYLIST_LINK}}</label>
@@ -272,7 +277,7 @@
                           </h2>
                         </li>
                       </ul>
-                      <!-- create new backup dialog-->
+                      <!-- 创建备份弹窗。 -->
                       <div class="dialog-newbackup" ng-show="dialog_type==9">
                         <button
                           class="btn btn-primary confirm-button"
@@ -531,7 +536,7 @@
                         infinite-scroll="scrolling()"
                         content-selector="'#playlist-content'"
                       >
-                        <!-- hot playlist window-->
+                        <!-- 热门歌单页面。 -->
                         <div
                           class="page page-hot-playlist"
                           ng-show="current_tag==2 && is_window_hidden==1"
@@ -616,14 +621,15 @@
                                     >
                                   </div>
                                 </li>
-                                <!-- <div class="loading_bottom">
+                                <!-- 停用代码，保留供历史对照：
+<div class="loading_bottom">
                                   <img src="images/loading-1.gif" height="40px" />
                                 </div> -->
                               </ul>
                             </div>
                           </div>
                         </div>
-                        <!-- my platform window-->
+                        <!-- 当前账号的平台歌单页面。 -->
                         <div
                           class="page page-hot-playlist"
                           ng-show="current_tag==6 && is_window_hidden==1"
@@ -675,14 +681,14 @@
                           </div>
                         </div>
     
-                        <!-- content page: 快速搜索 -->
+                        <!-- 快速搜索页面。 -->
                         <div
                           class="page"
                           ng-show="current_tag==3 && is_window_hidden==1"
                         >
                           <div class="site-wrapper-innerd">
                             <div class="cover-container">
-                              <!-- Initialize a new AngularJS app and associate it with a module named "instantSearch"-->
+                              <!-- 搜索结果使用外层 InstantSearchController 作用域。 -->
                               <div class="searchbox">
                                 <ul class="source-list">
                                   <li
@@ -787,7 +793,8 @@
                                     ng-dblclick="addAndPlay(song)"
                                   >
                                     <div class="title">
-                                      <!-- <a ng-if="song.disabled" class="disabled" ng-click="copyrightNotice()">{{ song.title |limitTo:30}}</a> -->
+                                      <!-- 停用代码，保留供历史对照：
+<a ng-if="song.disabled" class="disabled" ng-click="copyrightNotice()">{{ song.title |limitTo:30}}</a> -->
                                       <a add-and-play="song"
                                         ><span
                                           ng-if="isActiveTab('allmusic')"
@@ -879,7 +886,7 @@
                           </div>
                         </div>
     
-                        <!-- content page: 设置 -->
+                        <!-- 设置页面。 -->
                         <div
                           class="page"
                           ng-show="current_tag==4 && is_window_hidden==1"
@@ -1357,7 +1364,8 @@
                                       {{_SHORTCUTS_NOT_SET}}
                                     </div>
                                   </div>
-                                  <!-- <div class="shortcut_table-line">
+                                  <!-- 停用代码，保留供历史对照：
+<div class="shortcut_table-line">
                                     <div class="shortcut_table-function">
                                       静音/取消静音
                                     </div>
@@ -1392,7 +1400,8 @@
                                       {{_SHORTCUTS_NOT_SET}}
                                     </div>
                                   </div>
-                                  <!-- <div class="shortcut_table-line">
+                                  <!-- 停用代码，保留供历史对照：
+<div class="shortcut_table-line">
                                     <div class="shortcut_table-function">
                                       打开/关闭播放列表
                                     </div>
@@ -1482,7 +1491,7 @@
                             </div>
                           </div>
                         </div>
-                        <!-- content page: 登录 -->
+                        <!-- 登录状态页面。 -->
                         <div
                           class="page"
                           ng-show="current_tag==5 && is_window_hidden==1"
@@ -1525,7 +1534,7 @@
                           </div>
                         </div>
     
-                        <!-- track list window-->
+                        <!-- 歌单曲目详情。 -->
                         <div class="page">
                           <div
                             class="playlist-detail"
@@ -1684,7 +1693,8 @@
                                 drop-zone-ondrop="onPlaylistSongDrop(list_id, song, arg1, arg2, arg3)"
                               >
                                 <div class="title">
-                                  <!-- <a class="disabled" ng-if="song.disabled" ng-click="copyrightNotice()">{{ song.title }}</a> -->
+                                  <!-- 停用代码，保留供历史对照：
+<a class="disabled" ng-if="song.disabled" ng-click="copyrightNotice()">{{ song.title }}</a> -->
                                   <a add-and-play="song">{{ song.title }}</a>
                                 </div>
                                 <div class="artist">
@@ -1730,7 +1740,7 @@
                               </li>
                             </ul>
                           </div>
-                          <!-- now playing window-->
+                          <!-- 正在播放和歌词视图。 -->
                           <div
                             class="songdetail-wrapper"
                             ng-class="{slidedown: window_type!=='track', coverbg: enableNowplayingCoverBackground}"
@@ -1779,8 +1789,9 @@
                                   />
                                 </div>
                                 <div class="detail-head-title">
-                                  <!--<a title="加入收藏" class="clone" ng-click="showDialog(0, currentPlaying)">收藏</a>
-                    <a open-url="currentPlaying.source_url" title="原始链接" class="link">原始链接</a>-->
+                                  <!-- 停用代码，保留供历史对照：
+<a title="加入收藏" class="clone" ng-click="showDialog(0, currentPlaying)">收藏</a>
+                    <a open-url="currentPlaying.source_url" title="原始链接" class="link">原始链接</a> -->
                                 </div>
                               </div>
                               <div class="detail-songinfo">
@@ -1873,7 +1884,7 @@
                           ng-src="{{ currentPlaying.img_url }}"
                           err-src="https://y.gtimg.cn/mediastyle/global/img/album_300.png"
                         />
-                        <!-- Switching icon when hover -->
+                        <!-- 悬停封面时显示展开或收起图标。 -->
                         <div class="mask">
                           <svg class="feather" ng-if="getCurrentUrl() != '/now_playing'">
                             <use href="#chevrons-up"></use>
@@ -2078,7 +2089,8 @@
                               class="icon li-link"
                             ></span>
                           </div>
-                          <!-- <div class="song-time">00:00</div> -->
+                          <!-- 停用代码，保留供历史对照：
+<div class="song-time">00:00</div> -->
                         </li>
                       </ul>
                     </div>
@@ -2102,7 +2114,7 @@
           <div >
             <div ng-controller="NavigationController">
               <div class="wrap">
-                <!-- dialog-->
+                <!-- 通用操作弹窗。 -->
                 <div class="shadow" ng-hide="is_dialog_hidden==1"></div>
                 <div
                   class="dialog"
@@ -2114,7 +2126,7 @@
                     ><span class="dialog-close" ng-click="closeDialog()">×</span>
                   </div>
                   <div class="dialog-body">
-                    <!-- choose playlist dialog-->
+                    <!-- 选择目标歌单。 -->
                     <ul class="dialog-playlist" ng-show="dialog_type==0">
                       <li class="detail-add" ng-click="newDialogOption(1)">
                         <img src="images/mycover.jpg" />
@@ -2130,7 +2142,7 @@
                         <h2>{{ playlist.info.title }}</h2>
                       </li>
                     </ul>
-                    <!-- create new playlist dialog-->
+                    <!-- 创建歌单弹窗。 -->
                     <div class="dialog-newplaylist" ng-show="dialog_type==1">
                       <input
                         class="form-control"
@@ -2153,7 +2165,7 @@
                         </button>
                       </div>
                     </div>
-                    <!-- edit playlist dialog-->
+                    <!-- 编辑歌单弹窗。 -->
                     <div class="dialog-editplaylist" ng-show="dialog_type==3">
                       <div class="form-group">
                         <label>{{_PLAYLIST_TITLE}}</label>
@@ -2211,7 +2223,7 @@
                         </button>
                       </div>
                     </div>
-                    <!-- open playlist dialog-->
+                    <!-- 通过链接打开歌单。 -->
                     <div class="dialog-open-url" ng-show="dialog_type==5">
                       <div class="form-group">
                         <label>{{_PLAYLIST_LINK}}</label>
@@ -2281,7 +2293,7 @@
                         </h2>
                       </li>
                     </ul>
-                    <!-- create new backup dialog-->
+                    <!-- 创建备份弹窗。 -->
                     <div class="dialog-newbackup" ng-show="dialog_type==9">
                       <button
                         class="btn btn-primary confirm-button"
@@ -2502,9 +2514,11 @@
                     <div class="navigation">
                       <div class="backfront">
                         <svg  fill="currentColor" aria-hidden="true" focusable="false" data-prefix="fas" data-icon="angle-left" class="svg-inline--fa fa-angle-left fa-w-8 icon li-back" ng-click="popWindow()" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512"><path fill="currentColor" d="M31.7 239l136-136c9.4-9.4 24.6-9.4 33.9 0l22.6 22.6c9.4 9.4 9.4 24.6 0 33.9L127.9 256l96.4 96.4c9.4 9.4 9.4 24.6 0 33.9L201.7 409c-9.4 9.4-24.6 9.4-33.9 0l-136-136c-9.5-9.4-9.5-24.6-.1-34z"></path></svg>
-                        <!-- <span class="icon li-back" ng-click="popWindow()"></span> -->
+                        <!-- 停用代码，保留供历史对照：
+<span class="icon li-back" ng-click="popWindow()"></span> -->
                         <svg fill="currentColor" aria-hidden="true" focusable="false" data-prefix="fas" data-icon="angle-right" class="svg-inline--fa fa-angle-right fa-w-8 icon li-advance" ng-click="forwardWindow()" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512"><path fill="currentColor" d="M224.3 273l-136 136c-9.4 9.4-24.6 9.4-33.9 0l-22.6-22.6c-9.4-9.4-9.4-24.6 0-33.9l96.4-96.4-96.4-96.4c-9.4-9.4-9.4-24.6 0-33.9L54.3 103c9.4-9.4 24.6-9.4 33.9 0l136 136c9.5 9.4 9.5 24.6.1 34z"></path></svg>
-                        <!-- <span
+                        <!-- 停用代码，保留供历史对照：
+<span
                           class="icon li-advance"
                           ng-click="forwardWindow()"
                         ></span> -->
@@ -2536,7 +2550,8 @@
                         class="settings is-setting"
                       >
                       <svg aria-hidden="true" focusable="false" data-prefix="fas" data-icon="cog" fill="currentColor" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><path fill="currentColor" d="M487.4 315.7l-42.6-24.6c4.3-23.2 4.3-47 0-70.2l42.6-24.6c4.9-2.8 7.1-8.6 5.5-14-11.1-35.6-30-67.8-54.7-94.6-3.8-4.1-10-5.1-14.8-2.3L380.8 110c-17.9-15.4-38.5-27.3-60.8-35.1V25.8c0-5.6-3.9-10.5-9.4-11.7-36.7-8.2-74.3-7.8-109.2 0-5.5 1.2-9.4 6.1-9.4 11.7V75c-22.2 7.9-42.8 19.8-60.8 35.1L88.7 85.5c-4.9-2.8-11-1.9-14.8 2.3-24.7 26.7-43.6 58.9-54.7 94.6-1.7 5.4.6 11.2 5.5 14L67.3 221c-4.3 23.2-4.3 47 0 70.2l-42.6 24.6c-4.9 2.8-7.1 8.6-5.5 14 11.1 35.6 30 67.8 54.7 94.6 3.8 4.1 10 5.1 14.8 2.3l42.6-24.6c17.9 15.4 38.5 27.3 60.8 35.1v49.2c0 5.6 3.9 10.5 9.4 11.7 36.7 8.2 74.3 7.8 109.2 0 5.5-1.2 9.4-6.1 9.4-11.7v-49.2c22.2-7.9 42.8-19.8 60.8-35.1l42.6 24.6c4.9 2.8 11 1.9 14.8-2.3 24.7-26.7 43.6-58.9 54.7-94.6 1.5-5.5-.7-11.3-5.6-14.1zM256 336c-44.1 0-80-35.9-80-80s35.9-80 80-80 80 35.9 80 80-35.9 80-80 80z"></path></svg>
-                        <!-- <span class="icon li-setting"></span> -->
+                        <!-- 停用代码，保留供历史对照：
+<span class="icon li-setting"></span> -->
                       </div>
                       <div ng-if="!isChrome && !isMac" class="window-control">
                         <svg class="icon" window-control="window_min">
@@ -2557,7 +2572,7 @@
                       content-selector="'#playlist-content'"
                     >
                       <div style="height: 64px;"></div>
-                      <!-- hot playlist window-->
+                      <!-- 热门歌单页面。 -->
                       <div
                         class="page page-hot-playlist"
                         ng-show="current_tag==2 && is_window_hidden==1"
@@ -2648,14 +2663,15 @@
                                   >
                                 </div>
                               </li>
-                              <!-- <div class="loading_bottom">
+                              <!-- 停用代码，保留供历史对照：
+<div class="loading_bottom">
                                 <img src="images/loading-1.gif" height="40px" />
                               </div> -->
                             </ul>
                           </div>
                         </div>
                       </div>
-                      <!-- my platform window-->
+                      <!-- 当前账号的平台歌单页面。 -->
                       <div
                         class="page page-hot-playlist"
                         ng-show="current_tag==6 && is_window_hidden==1"
@@ -2712,14 +2728,14 @@
                         </div>
                       </div>
 
-                      <!-- content page: 快速搜索 -->
+                      <!-- 快速搜索页面。 -->
                       <div
                         class="page"
                         ng-show="current_tag==3 && is_window_hidden==1"
                       >
                         <div class="site-wrapper-innerd">
                           <div class="cover-container">
-                            <!-- Initialize a new AngularJS app and associate it with a module named "instantSearch"-->
+                            <!-- 搜索结果使用外层 InstantSearchController 作用域。 -->
                             <div ng-class="{footerdef:playlist.length == 0}" class="searchbox">
                               <ul class="source-list">
                                 <li
@@ -2812,13 +2828,15 @@
                               margin-right: 26px;
                           "><span style="opacity: .58;user-select: none;">搜索 <span ng-show="isSearchType(0)">歌曲</span><span ng-show="isSearchType(1)">歌单</span> </span>"{{keywords}}"</h1>
                               <ul ng-class="{'isSearch':isSearchType(1),isSearchOne:isSearchType(0)}" class="detail-songlist">
-                                <!-- <li class="head" ng-if="searchType===0 ">
+                                <!-- 停用代码，保留供历史对照：
+<li class="head" ng-if="searchType===0 ">
                                   <div class="title"><a>{{_SONGS}}</a></div>
                                   <div class="artist"><a>{{_ARTISTS}}</a></div>
                                   <div class="album"><a>{{_ALBUMS}}</a></div>
                                   <div class="tools">{{_OPERATION}}</div>
                                 </li> -->
-                                <!-- <li class="head" ng-if="searchType===1 ">
+                                <!-- 停用代码，保留供历史对照：
+<li class="head" ng-if="searchType===1 ">
                                   <div class="title">
                                     <a>{{_PLAYLIST_TITLE}}</a>
                                   </div>
@@ -2845,7 +2863,8 @@
                                       <div class="title-and-artist">
                                         <div class="container">
                                   <div class="title">
-                                    <!-- <a ng-if="song.disabled" class="disabled" ng-click="copyrightNotice()">{{ song.title |limitTo:30}}</a> -->
+                                    <!-- 停用代码，保留供历史对照：
+<a ng-if="song.disabled" class="disabled" ng-click="copyrightNotice()">{{ song.title |limitTo:30}}</a> -->
                                     <a add-and-play="song"
                                       ><span
                                         ng-if="isActiveTab('allmusic')"
@@ -2899,7 +2918,8 @@
                                       >
                                       <svg t="1659670349346" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="2640" width="512" height="512"><path d="M475.66342293 318.38570027A54.23369707 54.23369707 0 0 1 399.7362464 241.91618667L512 128.56775893a271.16848747 271.16848747 0 0 1 383.43224107 383.43224107L779.372128 625.8907648a54.23369707 54.23369707 0 1 1-76.46951253-76.4695136l113.89076373-113.8907648a162.70109227 162.70109227 0 0 0-229.9508768-229.9508768z m74.8425024 385.60158826A54.23369707 54.23369707 0 1 1 626.97543893 779.372128l-114.43310186 114.43310187A271.16848747 271.16848747 0 0 1 128.56775893 512L243.0008608 399.7362464a54.23369707 54.23369707 0 1 1 77.01185067 74.30016533l-114.97543894 114.43310187a162.70109227 162.70109227 0 0 0 229.9508768 229.9508768z m-135.0419072-17.89712a54.23369707 54.23369707 0 1 1-76.46951253-76.4695136l268.45680213-268.45680213a54.23369707 54.23369707 0 0 1 76.4695136 76.4695136z" fill="currentColor" p-id="2641"></path></svg>
                                       </a>
-                                    <!-- <a
+                                    <!-- 停用代码，保留供历史对照：
+<a
                                       title="{{_ORIGIN_LINK}}"
                                       class="source-button"
                                       ng-click="download_music(song.artist,song.title,song.url)"
@@ -2916,7 +2936,8 @@
                                   ng-class-even="'even'"
                                   class="playlist-result isSearchGeDan"
                                 >
-                                <!-- <a ng-click="showPlaylist(playlist.id)"> -->
+                                <!-- 停用代码，保留供历史对照：
+<a ng-click="showPlaylist(playlist.id)"> -->
                                   <div class="u-cover">
                                   <img
                                       ng-click="showPlaylist(playlist.id)"
@@ -2945,10 +2966,12 @@
                                       </div>
                                   </div>
                                   
-                                  <!-- <div class="album">
+                                  <!-- 停用代码，保留供历史对照：
+<div class="album">
                                     {{ playlist.count |limitTo:30}}
                                   </div> -->
-                                <!-- </a> -->
+                                <!-- 停用代码，保留供历史对照：
+</a> -->
                                 </li>
                               </ul>
                               <div
@@ -2962,7 +2985,7 @@
                         </div>
                       </div>
 
-                      <!-- content page: 设置 -->
+                      <!-- 设置页面。 -->
                       <div
                         class="page"
                         ng-show="current_tag==4 && is_window_hidden==1"
@@ -3434,7 +3457,8 @@
                                     {{_SHORTCUTS_NOT_SET}}
                                   </div>
                                 </div>
-                                <!-- <div class="shortcut_table-line">
+                                <!-- 停用代码，保留供历史对照：
+<div class="shortcut_table-line">
                                   <div class="shortcut_table-function">
                                     静音/取消静音
                                   </div>
@@ -3469,7 +3493,8 @@
                                     {{_SHORTCUTS_NOT_SET}}
                                   </div>
                                 </div>
-                                <!-- <div class="shortcut_table-line">
+                                <!-- 停用代码，保留供历史对照：
+<div class="shortcut_table-line">
                                   <div class="shortcut_table-function">
                                     打开/关闭播放列表
                                   </div>
@@ -3560,7 +3585,7 @@
                           </div>
                         </div>
                       </div>
-                      <!-- content page: 登录 -->
+                      <!-- 登录状态页面。 -->
                       <div
                         class="page"
                         ng-show="current_tag==5 && is_window_hidden==1"
@@ -3591,7 +3616,8 @@
                                 <div class="logoin-icon">
                                 <svg aria-hidden="true" focusable="false" data-prefix="fas" data-icon="sign-in-alt" class="svg-inline--fa fa-sign-in-alt fa-w-16" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><path fill="currentColor" d="M416 448h-84c-6.6 0-12-5.4-12-12v-40c0-6.6 5.4-12 12-12h84c17.7 0 32-14.3 32-32V160c0-17.7-14.3-32-32-32h-84c-6.6 0-12-5.4-12-12V76c0-6.6 5.4-12 12-12h84c53 0 96 43 96 96v192c0 53-43 96-96 96zm-47-201L201 79c-15-15-41-4.5-41 17v96H24c-13.3 0-24 10.7-24 24v96c0 13.3 10.7 24 24 24h136v96c0 21.5 26 32 41 17l168-168c9.3-9.4 9.3-24.6 0-34z"></path></svg>
                               </div>
-                                <!-- <img 
+                                <!-- 停用代码，保留供历史对照：
+<img
                                 err-src="https://y.gtimg.cn/mediastyle/global/img/playlist_300.png"
                                 src="images/placeholder.png" /> -->
 
@@ -3609,7 +3635,7 @@
                         </div>
                       </div>
 
-                      <!-- track list window-->
+                      <!-- 歌单曲目详情。 -->
                       <div class="page">
                         <div
                           class="playlist-detail"
@@ -3749,7 +3775,8 @@
                                 placeholder="{{_SEARCH_PLAYLIST}}"
                               />
                             </div>
-                            <!-- <div class="playlist-search">
+                            <!-- 停用代码，保留供历史对照：
+<div class="playlist-search">
                               <svg class="feather playlist-search-icon">
                                 <use href="#search"></use>
                               </svg>
@@ -3767,7 +3794,8 @@
                                 placeholder="{{_SEARCH_PLAYLIST}}"
                               />
                             </div> -->
-                            <!-- <li class="head">
+                            <!-- 停用代码，保留供历史对照：
+<li class="head">
                               <div class="title">
                                 <a>{{_SONGS + '(' + songs.length + ')'}}</a>
                               </div>
@@ -3794,7 +3822,8 @@
                             <div class="title-and-artist">
                             <div class="container">
                               <div class="title">
-                                <!-- <a class="disabled" ng-if="song.disabled" ng-click="copyrightNotice()">{{ song.title }}</a> -->
+                                <!-- 停用代码，保留供历史对照：
+<a class="disabled" ng-if="song.disabled" ng-click="copyrightNotice()">{{ song.title }}</a> -->
                                 <a add-and-play="song">{{ song.title }}</a>
                               </div>
                               <div class="artist">
@@ -3847,7 +3876,7 @@
                             </li>
                           </ul>
                         </div>
-                        <!-- now playing window-->
+                        <!-- 正在播放和歌词视图。 -->
                       
                       </div>
                     </div>
@@ -3933,7 +3962,8 @@
                           </div>
                         </div>
                       </div>
-                        <!-- <a title="加入收藏" class="clone" ng-click="showDialog(0, currentPlaying)">收藏</a>
+                        <!-- 停用代码，保留供历史对照：
+<a title="加入收藏" class="clone" ng-click="showDialog(0, currentPlaying)">收藏</a>
           <a open-url="currentPlaying.source_url" title="原始链接" class="link">原始链接</a> -->
                       </div>
                     </div>
@@ -3997,7 +4027,8 @@
                       class="cover"
                       ng-if="playlist.length > 0"
                     >
-                    <!-- <div class="logo-banner" ng-if="playlist.length == 0">
+                    <!-- 停用代码，保留供历史对照：
+<div class="logo-banner" ng-if="playlist.length == 0">
                       <svg
                         class="logo"
                         xmlns="http://www.w3.org/2000/svg"
@@ -4048,7 +4079,8 @@
                     </span>
                     </div>
                     
-                      <!-- <img
+                      <!-- 停用代码，保留供历史对照：
+<img
                       play-pause-toggle=""
                         ng-src="{{ currentPlaying.img_url.replace('/120/','/500/').replace('/T002R300x300M','/T002R500x500M')  }}?param=512y512"
                         err-src="https://y.gtimg.cn/mediastyle/global/img/album_300.png"
@@ -4267,7 +4299,8 @@
                             class="icon li-link"
                           ></span>
                         </div>
-                        <!-- <div class="song-time">00:00</div> -->
+                        <!-- 停用代码，保留供历史对照：
+<div class="song-time">00:00</div> -->
                       </li>
                     </ul>
                   </div>
@@ -4280,7 +4313,8 @@
       </div>
   </div>
   </body>
-  <!-- <script type="text/javascript">
+  <!-- 停用代码，保留供历史对照：
+<script type="text/javascript">
     window.onload=function(){
       let li = document.querySelectorAll(".footer .cover li")
       for(let i=0;i<li.length-1;i++){

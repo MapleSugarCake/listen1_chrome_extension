@@ -1,27 +1,29 @@
 /*
- * Globals
+ * 文件职责：保留早期封面布局的页面骨架、导航、居中规则和滚动条样式；当前主页面未直接加载此文件。
+ *
+ * 全局 CSS 自定义属性：
+ * - --scrollWidth：旧封面布局滚动条的宽度及高度，单位为像素。
  */
+/* 全局基础样式。 */
 
-/* Links */
+/* 链接颜色。 */
 a,
 a:focus,
 a:hover {
   color: #fff;
 }
 
-/* Custom default button */
+/* 默认按钮外观。 */
 .btn-default,
 .btn-default:hover,
 .btn-default:focus {
   color: #333;
-  text-shadow: none; /* Prevent inheritence from `body` */
+  text-shadow: none; /* 避免继承 body 的文字阴影。 */
   background-color: #fff;
   border: 1px solid #fff;
 }
 
-/*
- * Base structure
- */
+/* 页面基础结构。 */
 
 html,
 body {
@@ -31,18 +33,21 @@ body {
 body {
   color: #fff;
   overflow: hidden !important;
-  /*  text-align: center;*/
-  /*text-shadow: 0 1px 3px rgba(0,0,0,.5);*/
+  /* 停用样式，保留供历史对照：
+text-align: center; */
+  /* 停用样式，保留供历史对照：
+text-shadow: 0 1px 3px rgba(0,0,0,.5); */
 }
 
-/* Extra markup and styles for table-esque vertical and horizontal centering */
+/* 使用表格式布局实现水平与垂直对齐。 */
 .site-wrapper {
   display: table;
   width: 100%;
-  height: 100%; /* For at least Firefox */
+  height: 100%; /* 为 Firefox 等浏览器明确设置高度。 */
   min-height: 100%;
-  /*  -webkit-box-shadow: inset 0 0 100px rgba(0,0,0,.5);
-          box-shadow: inset 0 0 100px rgba(0,0,0,.5);*/
+  /* 停用样式，保留供历史对照：
+-webkit-box-shadow: inset 0 0 100px rgba(0,0,0,.5);
+          box-shadow: inset 0 0 100px rgba(0,0,0,.5); */
 }
 .site-wrapper-inner {
   display: table-cell;
@@ -53,14 +58,12 @@ body {
   margin-left: auto;
 }
 
-/* Padding for spacing */
+/* 使用内边距留出内容间隔。 */
 .inner {
   padding: 30px;
 }
 
-/*
- * Header
- */
+/* 顶部导航。 */
 .masthead-brand {
   margin-top: 10px;
   margin-bottom: 10px;
@@ -77,7 +80,7 @@ body {
   padding-left: 0;
   font-size: 16px;
   font-weight: bold;
-  color: #fff; /* IE8 proofing */
+  color: #fff; /* 为不支持后续颜色表达式的旧浏览器保留回退值。 */
   color: rgba(255, 255, 255, 0.75);
   border-bottom: 2px solid transparent;
 }
@@ -103,9 +106,7 @@ body {
   }
 }
 
-/*
- * Cover
- */
+/* 封面内容区。 */
 
 .cover {
   padding: 0 20px;
@@ -115,21 +116,17 @@ body {
   font-weight: bold;
 }
 
-/*
- * Footer
- */
+/* 页脚。 */
 
 .mastfoot {
-  color: #999; /* IE8 proofing */
+  color: #999; /* 为不支持后续颜色表达式的旧浏览器保留回退值。 */
   color: rgba(255, 255, 255, 0.5);
 }
 
-/*
- * Affix and center
- */
+/* 固定定位与居中布局。 */
 
 @media (min-width: 768px) {
-  /* Pull out the header and footer */
+  /* 将页头与页脚移出正常文档流。 */
   .masthead {
     position: fixed;
     top: 0;
@@ -138,15 +135,15 @@ body {
     position: fixed;
     bottom: 0;
   }
-  /* Start the vertical centering */
+  /* 在宽屏布局中垂直居中。 */
   .site-wrapper-inner {
     vertical-align: middle;
   }
-  /* Handle the widths */
+  /* 统一固定区域与内容区宽度。 */
   .masthead,
   .mastfoot,
   .cover-container {
-    width: 100%; /* Must be percentage or pixels for horizontal alignment */
+    width: 100%; /* 使用百分比或像素宽度维持水平对齐。 */
   }
 }
 
@@ -158,11 +155,9 @@ body {
   }
 }
 
-/*
- * Scroll bar
- *
- */
+/* 滚动条。 */
 :root {
+  /* --scrollWidth：旧封面布局滚动条的宽度及高度，单位为像素；值采用 CSS 长度格式。 */
   --scrollWidth: 10px;
 }
 

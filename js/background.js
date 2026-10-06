@@ -1,16 +1,33 @@
+/**
+ * 文件职责：处理浏览器扩展按钮打开播放器和 GitHub 授权码消息；旧请求头拦截代码保留为停用记录。
+ *
+ * 本文件没有需要逐项列出的文件级定义。
+ */
 /* eslint-disable no-unused-vars */
 /* global GithubClient */
-chrome.action.onClicked.addListener((tab) => {
+chrome.action.onClicked.addListener(
+  /**
+   * 响应 chrome.action.onClicked.addListener 事件，执行 chrome.tabs.create。
+   * @param tab 要切换的平台或分类；当前函数体未使用，保留调用签名。
+   * @returns {void} 无返回值。
+   */
+  (tab) => {
   chrome.tabs.create(
     {
       url: chrome.runtime.getURL('listen1.html'),
     },
+    /**
+     * 保留的空回调，此处无需继续处理或改变状态。
+     * @param new_tab 浏览器创建的新标签页信息；当前函数体未使用，保留调用签名。
+     * @returns {void} 无返回值。
+     */
     (new_tab) => {
-      // Tab opened.
+      // 播放器标签页已打开。
     }
   );
 });
 
+// 停用代码，保留供历史对照：
 // const MOBILE_UA =
 //   'Mozilla/5.0 (iPhone; CPU iPhone OS 14_3 like Mac OS X) AppleWebKit/534.30 (KHTML, like Gecko) Version/4.0 Mobile Safari/534.30';
 
@@ -123,7 +140,8 @@ chrome.action.onClicked.addListener((tab) => {
 //   for (let i = 0, l = headers.length; i < l; i += 1) {
 //     if (
 //       replace_referer &&
-//       headers[i].name === 'Referer' &&
+// 停用代码，保留供历史对照：
+// headers[i].name === 'Referer' &&
 //       referer_value !== ''
 //     ) {
 //       headers[i].value = referer_value;
@@ -186,24 +204,35 @@ chrome.action.onClicked.addListener((tab) => {
 //       urls,
 //     },
 //     ['requestHeaders', 'blocking', 'extraHeaders']
-//   );
+// 停用代码，保留供历史对照：
+// );
 // } catch (err) {
-//   // before chrome v72, extraHeader is not supported
-//   chrome.webRequest.onBeforeSendHeaders.addListener(
+// // Chrome 72 之前不支持 extraHeaders。
+// 停用代码，保留供历史对照：
+// chrome.webRequest.onBeforeSendHeaders.addListener(
 //     hack_referer_header,
 //     {
 //       urls,
 //     },
 //     ['requestHeaders', 'blocking']
-//   );
+// 停用代码，保留供历史对照：
+// );
 // }
 
 
 /**
- * Get tokens.
- */
+ * 接收 GitHub 授权码并交给授权客户端。
+*/
 
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener(
+  /**
+   * 响应 chrome.runtime.onMessage.addListener 事件，执行 sendResponse。
+   * @param request 页面传入的业务请求；使用 type、code 字段。
+   * @param sender 扩展消息的发送方信息；当前函数体未使用，保留调用签名。
+   * @param sendResponse 用于应答扩展消息的函数。
+   * @returns {void} 无返回值。
+   */
+  (request, sender, sendResponse) => {
   if (request.type !== 'code') {
     return;
   }

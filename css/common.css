@@ -1,3 +1,8 @@
+/*
+ * 文件职责：提供经典布局的通用样式，组织侧栏、导航、搜索、歌单详情、歌词、播放栏和弹窗，颜色由主题变量提供。
+ *
+ * 本文件不定义全局 CSS 自定义属性；选择器按页面功能分区组织。
+ */
 html,
 body {
   margin: 0;
@@ -12,12 +17,13 @@ a {
 }
 
 .wrap {
-  /* https://stackoverflow.com/questions/28897089/z-index-on-borders */
+  /* 停用样式，保留供历史对照：
+https://stackoverflow.com/questions/28897089/z-index-on-borders */
   outline: solid 1px var(--windows-border-color);
   box-sizing: border-box;
 }
 
-/* remove focus highlight */
+/* 移除控件获得焦点时的默认轮廓。 */
 input:focus,
 select:focus,
 textarea:focus,
@@ -75,21 +81,23 @@ svg {
   stroke-linejoin: round;
   fill: none;
   cursor: pointer;
-  /*    stroke: var(--icon-default-color);*/
+  /* 停用样式，保留供历史对照：
+stroke: var(--icon-default-color); */
 }
 
-/* svg:hover {
+/* 停用样式，保留供历史对照：
+svg:hover {
   fill: var(--icon-highlight-color);
   stroke: var(--icon-highlight-color);
 } */
 
 .icon {
-  /* default icon settings */
+  /* 通用图标尺寸与交互光标。 */
   font-size: 16px;
   cursor: pointer;
 }
 
-/* tools utils */
+/* 滚动容器等通用辅助样式。 */
 .flex-scroll-wrapper {
   flex: 1;
   height: 100px;
@@ -98,7 +106,7 @@ svg {
   scrollbar-color: var(--scroll-color) var(--content-background-color);
 }
 
-/* scroll bar style */
+/* 滚动条外观。 */
 ::-webkit-scrollbar {
   width: 14px;
   height: 18px;
@@ -112,9 +120,11 @@ svg {
   border-radius: 7px;
   -webkit-border-radius: 7px;
   background-color: var(--scroll-color);
-  /*rgba(151, 151, 151, 0.4);*/
+  /* 停用样式，保留供历史对照：
+rgba(151, 151, 151, 0.4); */
 
-  /*    -webkit-box-shadow: inset -1px -1px 0px rgba(0, 0, 0, 0.05), inset 1px 1px 0px rgba(0, 0, 0, 0.05);*/
+  /* 停用样式，保留供历史对照：
+-webkit-box-shadow: inset -1px -1px 0px rgba(0, 0, 0, 0.05), inset 1px 1px 0px rgba(0, 0, 0, 0.05); */
 }
 
 ::-webkit-scrollbar-button {
@@ -127,7 +137,7 @@ svg {
   background-color: transparent;
 }
 
-/* main framework start */
+/* 主页面布局开始。 */
 .wrap {
   display: flex;
   height: 100vh;
@@ -135,7 +145,7 @@ svg {
   margin: auto;
 }
 
-/* split screen to up/down 2 parts */
+/* 将页面分为内容区和底部播放栏。 */
 .main {
   flex: 1;
   display: flex;
@@ -151,7 +161,7 @@ svg {
   z-index: 99;
 }
 
-/* split main to left/right 2 parts */
+/* 将主内容分为左侧栏和右侧页面。 */
 .main .sidebar {
   flex: 0 0 200px;
   display: flex;
@@ -166,7 +176,7 @@ svg {
   flex-direction: column;
 }
 
-/* split content to up/down 2 parts */
+/* 将右侧页面分为导航栏和滚动内容区。 */
 .main .content .navigation {
   height: 46px;
   flex: 0 0 46px;
@@ -180,11 +190,11 @@ svg {
   flex: 1;
 }
 
-/* main framework end */
+/* 主页面布局结束。 */
 
 /*****************************************************************/
 
-/* main sidebar start */
+/* 主侧栏样式开始。 */
 .sidebar .menu-control {
   height: 43px;
   width: 125px;
@@ -252,16 +262,15 @@ svg {
   background: var(--sidebar-highlight-background-color);
   color: var(--sidebar-highlight-text-color);
 }
-/*
-avoid hover effect trigger dragleave event
-https://stackoverflow.com/questions/19889615/can-an-angular-directive-pass-arguments-to-functions-in-expressions-specified-in
-*/
+/* 停用样式，保留供历史对照：
+避免子元素命中变化触发拖离事件。
+https://stackoverflow.com/questions/19889615/can-an-angular-directive-pass-arguments-to-functions-in-expressions-specified-in */
 .sidebar ul li * {
   pointer-events: none;
 }
-/* main sidebar end */
+/* 主侧栏样式结束。 */
 
-/* widget navigation start */
+/* 导航组件样式开始。 */
 .navigation svg {
   width: 18px;
   height: 18px;
@@ -329,9 +338,9 @@ https://stackoverflow.com/questions/19889615/can-an-angular-directive-pass-argum
   margin-left: 15px;
 }
 
-/* navigation end */
+/* 导航组件样式结束。 */
 
-/* page hot-playlist start */
+/* 热门歌单页面样式开始。 */
 .page-hot-playlist {
   max-width: 850px;
   margin: 0 auto;
@@ -404,9 +413,9 @@ https://stackoverflow.com/questions/19889615/can-an-angular-directive-pass-argum
   min-height: 32px;
   margin: 0 0 5px;
 }
-/* page hot-playlist end */
+/* 热门歌单页面样式结束。 */
 
-/* page playlist-detail start */
+/* 歌单详情样式开始。 */
 .page .playlist-detail {
   padding-bottom: 37px;
 }
@@ -523,9 +532,9 @@ https://stackoverflow.com/questions/19889615/can-an-angular-directive-pass-argum
 .page .playlist-detail .detail-head .detail-head-title h2 {
   font-size: var(--h2-title-font-size);
 }
-/* page playlist detail end */
+/* 歌单详情样式结束。 */
 
-/* page song detail start */
+/* 歌曲详情与歌词样式开始。 */
 .page .songdetail-wrapper {
   position: absolute;
   top: 0;
@@ -785,7 +794,8 @@ ul.detail-songlist .playlist-search .playlist-search-input::placeholder {
 }
 
 ul.detail-songlist li {
-  /* https://stackoverflow.com/questions/4157005/css-positioning-z-index-negative-margins */
+  /* 停用样式，保留供历史对照：
+https://stackoverflow.com/questions/4157005/css-positioning-z-index-negative-margins */
   position: relative;
   display: flex;
   border-top: solid 2px var(--songlist-border-color);
@@ -901,9 +911,9 @@ ul.detail-songlist li .tools .icon {
   margin-top: 2px;
   margin-right: 10px;
 }
-/* page song detail end */
+/* 歌曲详情与歌词样式结束。 */
 
-/* page login start */
+/* 登录页面样式开始。 */
 .page .login {
   display: flex;
   flex-direction: column;
@@ -1000,9 +1010,9 @@ ul.detail-songlist li .tools .icon {
 .page .login .usercard button {
   margin: 10px;
 }
-/* page login end */
+/* 登录页面样式结束。 */
 
-/* page setting start */
+/* 设置页面样式开始。 */
 .page .settings-title {
   border-bottom: solid 1px var(--line-default-color);
   padding-bottom: 10px;
@@ -1125,7 +1135,7 @@ ul.detail-songlist li .tools .icon {
   height: 18px;
   margin-right: 4px;
 }
-/* page setting end */
+/* 设置页面样式结束。 */
 
 .loading_bottom {
   display: block;
@@ -1139,7 +1149,7 @@ svg.searchspinner {
   vertical-align: top;
   margin-left: 15px;
 }
-/* footer start */
+/* 底部播放栏样式开始。 */
 
 .footer {
   background: var(--foot-background-color);
@@ -1238,7 +1248,8 @@ svg.searchspinner {
   right: 0px;
   top: 4px;
   padding-right: 6px;
-  /* background: #eeeeee; */
+  /* 停用样式，保留供历史对照：
+background: #eeeeee; */
 }
 .footer .main-info .detail .ctrl:first-of-type .icon {
   margin-right: 5px;
@@ -1469,7 +1480,8 @@ svg.searchspinner {
   cursor: pointer;
 }
 
-/* div.visited{
+/* 停用样式，保留供历史对照：
+div.visited{
   color: green;
 } */
 
@@ -1577,9 +1589,9 @@ svg.searchspinner {
   top: -6px;
 }
 
-/* footer end */
+/* 底部播放栏样式结束。 */
 
-/* dialog start */
+/* 弹窗样式开始。 */
 .shadow {
   position: fixed;
   background: rgba(30, 30, 30, 0.9);
@@ -1712,9 +1724,9 @@ svg.searchspinner {
   margin: 10px 0 5px 0;
 }
 
-/* dialog end */
+/* 弹窗样式结束。 */
 
-/* widget source-list start */
+/* 音乐来源切换组件开始。 */
 .source-list {
   margin: 20px 26px 10px 26px;
 }
@@ -1744,9 +1756,9 @@ svg.searchspinner {
 .source-list .search-type {
   float: right;
 }
-/* widget source-list end */
+/* 音乐来源切换组件结束。 */
 
-/* widget playlist-filter start */
+/* 推荐分类筛选组件开始。 */
 
 .playlist-filter {
   line-height: 38px;
@@ -1764,9 +1776,9 @@ svg.searchspinner {
   background: var(--button-hover-background-color);
 }
 
-/* widget playlist-filter end */
+/* 推荐分类筛选组件结束。 */
 
-/* widget all-playlist-filter start */
+/* 完整歌单分类组件开始。 */
 .all-playlist-filter .category {
   margin-bottom: 10px;
   display: flex;
@@ -1799,4 +1811,4 @@ svg.searchspinner {
   background-color: var(--button-background-color);
   border-radius: var(--default-border-radius);
 }
-/* widget all-playlist-filter end */
+/* 完整歌单分类组件结束。 */

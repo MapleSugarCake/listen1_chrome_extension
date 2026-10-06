@@ -1,84 +1,215 @@
-/* global settings (theme related) */
+/*
+ * 文件职责：定义经典浅色主题的全局 CSS 自定义属性，供 common.css 的布局和控件引用。
+ *
+ * 全局 CSS 自定义属性：
+ * - --icon-default-color：默认图标颜色。
+ * - --icon-highlight-color：图标强调颜色。
+ * - --text-default-color：正文默认颜色。
+ * - --text-subtitle-color：副标题和次要文字颜色。
+ * - --text-disable-color：不可用文字颜色。
+ * - --lyric-default-color：歌词默认颜色。
+ * - --lyric-on-cover-color：封面背景上的歌词颜色。
+ * - --lyric-important-color：当前歌词高亮颜色。
+ * - --lyric-important-on-cover-color：封面背景上的当前歌词高亮颜色。
+ * - --link-default-color：普通链接颜色。
+ * - --link-highlight-color：链接强调颜色。
+ * - --link-active-color：选中来源链接颜色。
+ * - --link-inactive-color：未选中来源链接颜色。
+ * - --line-default-color：常规分隔线颜色。
+ * - --sidebar-background-color：经典侧栏背景色。
+ * - --sidebar-highlight-background-color：侧栏选中项背景色。
+ * - --sidebar-highlight-text-color：侧栏选中项文字颜色。
+ * - --sidebar-hover-background-color：侧栏悬停项背景色。
+ * - --sidebar-hover-text-color：侧栏悬停项文字颜色。
+ * - --content-background-color：内容区域背景色。
+ * - --foot-background-color：经典底栏及队列背景色。
+ * - --foot-border-color：底栏边界颜色。
+ * - --footer-main-background-color：底栏曲目信息区背景色。
+ * - --footer-player-bar-background-color：播放进度条未播放部分颜色。
+ * - --footer-player-bar-cur-background-color：播放进度条已播放部分颜色。
+ * - --footer-header-background-color：队列标题区域分隔线颜色。
+ * - --footer-menu-even-background-color：队列偶数行背景色。
+ * - --footer-menu-hover-background-color：队列悬停行背景色。
+ * - --search-input-background-color：搜索输入区域背景色。
+ * - --footer-player-bar-cur-button-color：播放进度滑块颜色。
+ * - --window-control-border-color：窗口控制区域分隔线颜色。
+ * - --important-color：播放中曲目和重点操作强调色。
+ * - --button-background-color：普通按钮背景色。
+ * - --button-border-color：按钮边框颜色。
+ * - --button-hover-background-color：按钮悬停背景色。
+ * - --now-playing-page-background-color：经典正在播放页面背景色。
+ * - --now-playing-close-icon-color：正在播放页面关闭及窗口按钮颜色。
+ * - --disable-song-title-color：不可播放曲目的标题颜色。
+ * - --windows-border-color：应用窗口外框颜色。
+ * - --default-border-radius：通用控件圆角，单位为像素。
+ * - --text-default-size：默认正文字号，单位为像素。
+ * - --h2-title-font-size：歌曲和歌单标题字号，单位为像素。
+ * - --badge-font-size：码率及来源徽标字号，单位为像素。
+ * - --badge-font-color：经典徽标文字颜色。
+ * - --badge-border-color：经典徽标边框颜色。
+ * - --songlist-odd-background-color：歌曲列表奇数行背景色。
+ * - --songlist-border-color：歌曲列表行边框颜色。
+ * - --songlist-hover-background-color：歌曲列表及相关控件悬停背景色。
+ * - --player-left-icon-color：经典底栏左侧切歌图标颜色。
+ * - --player-icon-color：播放按钮默认颜色。
+ * - --player-icon-hover-color：播放按钮悬停颜色。
+ * - --player-right-icon-color：底栏右侧队列图标颜色。
+ * - --player-right-icon-hover-color：底栏右侧队列图标悬停颜色。
+ * - --dialog-highlight-color：弹窗列表悬停背景色。
+ * - --dialog-background-color：弹窗背景色。
+ * - --dialog-text-color：弹窗文字颜色。
+ * - --volume-icon-color：音量图标颜色。
+ * - --volume-bar-background-color：音量条背景色。
+ * - --volume-bar-current-background-color：音量条已选部分颜色。
+ * - --scroll-color：滚动条滑块颜色。
+ * - --lyric-icon-background-color：桌面歌词开关背景色。
+ * - --lyric-font-size：经典歌词字号，单位为像素。
+ * - --lyric-line-margin：经典歌词行间距，单位为像素。
+ */
+/* 主题全局自定义属性。 */
 :root {
+  /* --icon-default-color：默认图标颜色；值采用 CSS 颜色格式。 */
   --icon-default-color: #666666;
+  /* --icon-highlight-color：图标强调颜色；值采用 CSS 颜色格式。 */
   --icon-highlight-color: #111111;
 
+  /* --text-default-color：正文默认颜色；值采用 CSS 颜色格式。 */
   --text-default-color: #111111;
+  /* --text-subtitle-color：副标题和次要文字颜色；值采用 CSS 颜色格式。 */
   --text-subtitle-color: #666666;
+  /* --text-disable-color：不可用文字颜色；值采用 CSS 颜色格式。 */
   --text-disable-color: #999999;
 
+  /* --lyric-default-color：歌词默认颜色；值采用 CSS 颜色格式。 */
   --lyric-default-color: #666666;
+  /* --lyric-on-cover-color：封面背景上的歌词颜色；值采用 CSS 颜色格式。 */
   --lyric-on-cover-color: #333333;
+  /* --lyric-important-color：当前歌词高亮颜色；值采用 CSS 颜色格式。 */
   --lyric-important-color: #ff4444;
+  /* --lyric-important-on-cover-color：封面背景上的当前歌词高亮颜色；值采用 CSS 颜色格式。 */
   --lyric-important-on-cover-color: #ffffff;
 
+  /* --link-default-color：普通链接颜色；值采用 CSS 颜色格式。 */
   --link-default-color: #999999;
+  /* --link-highlight-color：链接强调颜色；值采用 CSS 颜色格式。 */
   --link-highlight-color: #111111;
+  /* --link-active-color：选中来源链接颜色；值采用 CSS 颜色格式。 */
   --link-active-color: #323232;
+  /* --link-inactive-color：未选中来源链接颜色；值采用 CSS 颜色格式。 */
   --link-inactive-color: #a9a9a9;
 
+  /* --line-default-color：常规分隔线颜色；值采用 CSS 颜色格式。 */
   --line-default-color: #e5e5e5;
 
+  /* --sidebar-background-color：经典侧栏背景色；值采用 CSS 颜色格式。 */
   --sidebar-background-color: rgba(245, 245, 245, 0.7);
+  /* --sidebar-highlight-background-color：侧栏选中项背景色；值采用 CSS 颜色格式。 */
   --sidebar-highlight-background-color: #4d4d4d;
+  /* --sidebar-highlight-text-color：侧栏选中项文字颜色；值采用 CSS 颜色格式。 */
   --sidebar-highlight-text-color: #ffffff;
+  /* --sidebar-hover-background-color：侧栏悬停项背景色；值采用 CSS 颜色格式。 */
   --sidebar-hover-background-color: #5f5f5f;
+  /* --sidebar-hover-text-color：侧栏悬停项文字颜色；值采用 CSS 颜色格式。 */
   --sidebar-hover-text-color: #ffffff;
 
+  /* --content-background-color：内容区域背景色；值采用 CSS 颜色格式。 */
   --content-background-color: #ffffff;
 
+  /* --foot-background-color：经典底栏及队列背景色；值采用 CSS 颜色格式。 */
   --foot-background-color: #ffffff;
+  /* --foot-border-color：底栏边界颜色；值采用 CSS 颜色格式。 */
   --foot-border-color: #e5e5e5;
+  /* --footer-main-background-color：底栏曲目信息区背景色；值采用 CSS 颜色格式。 */
   --footer-main-background-color: #f2f2f2;
+  /* --footer-player-bar-background-color：播放进度条未播放部分颜色；值采用 CSS 颜色格式。 */
   --footer-player-bar-background-color: #e0e0e0;
+  /* --footer-player-bar-cur-background-color：播放进度条已播放部分颜色；值采用 CSS 颜色格式。 */
   --footer-player-bar-cur-background-color: #666666;
+  /* --footer-header-background-color：队列标题区域分隔线颜色；值采用 CSS 颜色格式。 */
   --footer-header-background-color: #e7e7e7;
+  /* --footer-menu-even-background-color：队列偶数行背景色；值采用 CSS 颜色格式。 */
   --footer-menu-even-background-color: #f7f7f7;
+  /* --footer-menu-hover-background-color：队列悬停行背景色；值采用 CSS 颜色格式。 */
   --footer-menu-hover-background-color: #e5e5e5;
+  /* --search-input-background-color：搜索输入区域背景色；值采用 CSS 颜色格式。 */
   --search-input-background-color: #f2f2f2;
+  /* --footer-player-bar-cur-button-color：播放进度滑块颜色；值采用 CSS 颜色格式。 */
   --footer-player-bar-cur-button-color: #111111;
 
+  /* --window-control-border-color：窗口控制区域分隔线颜色；值采用 CSS 颜色格式。 */
   --window-control-border-color: #dddddd;
 
+  /* --important-color：播放中曲目和重点操作强调色；值采用 CSS 颜色格式。 */
   --important-color: #ff4444;
 
+  /* --button-background-color：普通按钮背景色；值采用 CSS 颜色格式。 */
   --button-background-color: #eeeeee;
+  /* --button-border-color：按钮边框颜色；值采用 CSS 颜色格式。 */
   --button-border-color: #bebebe;
+  /* --button-hover-background-color：按钮悬停背景色；值采用 CSS 颜色格式。 */
   --button-hover-background-color: #dddddd;
 
+  /* --now-playing-page-background-color：经典正在播放页面背景色；值采用 CSS 颜色格式。 */
   --now-playing-page-background-color: #ffffff;
+  /* --now-playing-close-icon-color：正在播放页面关闭及窗口按钮颜色；值采用 CSS 颜色格式。 */
   --now-playing-close-icon-color: #666666;
 
+  /* --disable-song-title-color：不可播放曲目的标题颜色；值采用 CSS 颜色格式。 */
   --disable-song-title-color: #b7b7b7;
+  /* --windows-border-color：应用窗口外框颜色；值采用 CSS 颜色格式。 */
   --windows-border-color: #dddddd;
 
+  /* --default-border-radius：通用控件圆角，单位为像素；值采用 CSS 长度格式。 */
   --default-border-radius: 2px;
+  /* --text-default-size：默认正文字号，单位为像素；值采用 CSS 长度格式。 */
   --text-default-size: 13px;
+  /* --h2-title-font-size：歌曲和歌单标题字号，单位为像素；值采用 CSS 长度格式。 */
   --h2-title-font-size: 24px;
+  /* --badge-font-size：码率及来源徽标字号，单位为像素；值采用 CSS 长度格式。 */
   --badge-font-size: 12px;
+  /* --badge-font-color：经典徽标文字颜色；值采用 CSS 颜色格式。 */
   --badge-font-color: #c75449;
+  /* --badge-border-color：经典徽标边框颜色；值采用 CSS 颜色格式。 */
   --badge-border-color: #d98e87;
+  /* --songlist-odd-background-color：歌曲列表奇数行背景色；值采用 CSS 颜色格式。 */
   --songlist-odd-background-color: #f5f5f5;
+  /* --songlist-border-color：歌曲列表行边框颜色；值采用 CSS 颜色格式。 */
   --songlist-border-color: #f4f4f4;
+  /* --songlist-hover-background-color：歌曲列表及相关控件悬停背景色；值采用 CSS 颜色格式。 */
   --songlist-hover-background-color: #eeeeee;
 
+  /* --player-left-icon-color：经典底栏左侧切歌图标颜色；值采用 CSS 颜色格式。 */
   --player-left-icon-color: #b1b1b1;
+  /* --player-icon-color：播放按钮默认颜色；值采用 CSS 颜色格式。 */
   --player-icon-color: #666666;
+  /* --player-icon-hover-color：播放按钮悬停颜色；值采用 CSS 颜色格式。 */
   --player-icon-hover-color: #666666;
+  /* --player-right-icon-color：底栏右侧队列图标颜色；值采用 CSS 颜色格式。 */
   --player-right-icon-color: #333333;
+  /* --player-right-icon-hover-color：底栏右侧队列图标悬停颜色；值采用 CSS 颜色格式。 */
   --player-right-icon-hover-color: #000000;
 
+  /* --dialog-highlight-color：弹窗列表悬停背景色；值采用 CSS 颜色格式。 */
   --dialog-highlight-color: #e3e3e5;
+  /* --dialog-background-color：弹窗背景色；值采用 CSS 颜色格式。 */
   --dialog-background-color: #fafafa;
+  /* --dialog-text-color：弹窗文字颜色；值采用 CSS 颜色格式。 */
   --dialog-text-color: #565656;
 
+  /* --volume-icon-color：音量图标颜色；值采用 CSS 颜色格式。 */
   --volume-icon-color: #333333;
+  /* --volume-bar-background-color：音量条背景色；值采用 CSS 颜色格式。 */
   --volume-bar-background-color: #e0e0e0;
+  /* --volume-bar-current-background-color：音量条已选部分颜色；值采用 CSS 颜色格式。 */
   --volume-bar-current-background-color: #333333;
 
+  /* --scroll-color：滚动条滑块颜色；值采用 CSS 颜色格式。 */
   --scroll-color: #c2c2c2;
 
+  /* --lyric-icon-background-color：桌面歌词开关背景色；值采用 CSS 颜色格式。 */
   --lyric-icon-background-color: #ffffff;
+  /* --lyric-font-size：经典歌词字号，单位为像素；值采用 CSS 长度格式。 */
   --lyric-font-size: 15px;
+  /* --lyric-line-margin：经典歌词行间距，单位为像素；值采用 CSS 长度格式。 */
   --lyric-line-margin: 20px;
 }

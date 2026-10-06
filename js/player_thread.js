@@ -1,20 +1,72 @@
+/**
+ * 文件职责：在当前渲染环境中维护播放队列和 Howler 实例，处理地址解析、过期缓存、切歌取消与媒体事件同步。
+ *
+ * 文件级定义：
+ * - Player：持有播放队列、Howler 实例和异步请求代次；创建时启动进度定时器，队列替换与清空时释放音频资源。
+ * - Player.constructor：初始化空队列、播放代次、五分钟地址缓存和默认刷新计时器。
+ * - Player.cancelPending：推进播放代次，取消当前地址请求并清理加载超时，令迟到回调失效。
+ * - Player.setMode：切换播放器消息发送目标，后续事件按新模式路由。
+ * - Player.setRefreshRate：清理旧进度计时器，再按每秒刷新次数创建新计时器。
+ * - Player.currentAudio：读取当前索引对应的曲目。
+ * - Player.currentHowl：读取当前曲目的 Howl 实例。
+ * - Player.playing：查询当前音频是否正在播放，没有实例时返回 false。
+ * - Player.muted：读取 Howler 的全局静音状态。
+ * - Player.insertAudio：按 ID 去重后插入单首曲目，必要时移动当前索引并发送队列快照。
+ * - Player.array_move：在同一数组内移动元素，目标超出长度时先补空位。
+ * - Player.insertAudioByDirection：将曲目放到目标曲目前后，重排后仍按 ID 保留当前播放曲目。
+ * - Player.removeAudio：移除队列曲目并释放其音频和缓存。
+ * - Player.appendAudioList：过滤无效或重复 ID 后批量追加，只发送一次完整队列快照。
+ * - Player.clearPlaylist：取消请求、卸载音频并清空队列与索引，按 notify 决定是否广播清空结果。
+ * - Player.stopAll：停止队列中已有的所有 Howl 实例。
+ * - Player.unloadAll：卸载 Howler 音频并清除曲目对原生实例的引用。
+ * - Player.setNewPlaylist：清理旧队列、过滤无效及重复 ID 后替换列表，加载首项并广播新的完整快照。
+ * - Player.playById：查找曲目 ID，再按索引执行播放。
+ * - Player.loadById：查找曲目 ID，取消旧请求后加载该项但不自动播放。
+ * - Player.play：选择有效索引，检查地址缓存是否过期，再解析地址或使用已有地址播放。
+ * - Player.retrieveMediaUrl：为当前曲目请求播放地址，共享同曲目的在途请求。
+ * - Player.load：切换当前曲目并停止其他音频，广播加载事件，防止多首同时播放。
+ * - Player.finishLoad：创建或复用 HTML5 Howl，绑定受播放代次保护的事件。
+ * - Player.pause：暂停当前音频并推送暂停状态。
+ * - Player.skip：按顺序或随机映射选择前后曲目，跳过禁用项。
+ * - Player.loop_mode：接受 all、one、shuffle 名称或对应的 0、1、2 编号更新循环模式。
+ * - Player.loop_mode：读取当前播放循环模式，不修改队列或播放位置。
+ * - Player.volume：把数值交给 Howler 设置全局音量，并发送音量及播放帧事件。
+ * - Player.volume：读取 Howler 的全局音量，供页面状态同步与音量调整使用。
+ * - Player.adjustVolume：按 0.1 的步长增减音量，并限制在 0 至 1。
+ * - Player.mute：开启全局静音并通知音量状态。
+ * - Player.unmute：关闭全局静音并通知音量状态。
+ * - Player.seek：将 0 至 1 的播放比例换算为秒并跳转，随后推送进度。
+ * - Player.seekTime：以秒为单位跳转当前音频，并推送新进度。
+ * - Player.formatTime：将秒数向下取整并格式化为分钟与两位秒数。
+ * - Player.setMediaURI：按曲目 ID 缓存播放 URL，并写入五分钟后的过期时间。
+ * - Player.setAudioDisabled：修改指定队列项的禁用标记。
+ * - Player.sendFrameUpdate：向页面推送当前秒数、时长和进度比例，并更新媒体会话位置。
+ * - Player.sendPlayingEvent：推送播放状态及触发原因。
+ * - Player.sendLoadEvent：推送当前曲目和加载索引，供页面刷新元数据与歌词。
+ * - Player.sendVolumeEvent：推送全局音量和静音状态。
+ * - Player.sendPlaylistEvent：复制队列并剔除无法跨消息边界传递的 Howl 实例，再发送完整快照。
+ * - threadPlayer：当前页面中的播放核心实例；文件名不表示创建了独立线程。
+ */
 /* eslint-disable no-underscore-dangle */
 /* global playerSendMessage MediaService */
 /* global Howl Howler */
 {
   /**
-   * Player class containing the state of our playlist and where we are in it.
-   * Includes all methods for playing, skipping, updating the display, etc.
-   * @param {Array} playlist Array of objects with playlist song details ({title, file, howl}).
+   * 持有播放队列、Howler 实例和异步请求代次；创建时启动进度定时器，队列替换与清空时释放音频资源。
    */
   class Player {
+    /**
+     * 初始化空队列、播放代次、五分钟地址缓存和默认刷新计时器；实例保持至所属页面销毁。
+     * 无参数。
+     * @returns {Player} 由 new 创建并初始化的实例。
+     */
     constructor() {
       this.playlist = [];
       this._random_playlist = [];
       this.index = -1;
       this._loop_mode = 0;
-      // Media URLs are cached by Listen1 track id after provider bootstrap.
-      // They are intentionally not persisted because provider URLs can expire.
+      // 播放地址解析成功后按曲目 ID 缓存在内存中，
+      // 不写入持久化存储，因为平台地址会过期。
       this._media_uri_list = {};
       this.playedFrom = 0;
       this.mode =
@@ -33,6 +85,11 @@
       this._loadRetries = new Map();
     }
 
+    /**
+     * 推进播放代次，取消当前地址请求并清理加载超时，令迟到回调失效。
+     * 无参数。
+     * @returns {void} 无返回值。
+     */
     cancelPending() {
       this._generation += 1;
       const pending = this._pending;
@@ -41,47 +98,101 @@
       clearTimeout(this._loadTimer);
     }
 
+    /**
+     * 切换播放器消息发送目标，后续事件按新模式路由。
+     * @param newMode 新的播放环境或代理模式。
+     * @returns {void} 无返回值。
+     */
     setMode(newMode) {
       this.mode = newMode;
     }
 
+    /**
+     * 清理旧进度计时器，再按每秒刷新次数创建新计时器。
+     * @param [rate] 每秒刷新次数；用于计算定时器间隔；默认值为 10。
+     * @returns {void} 无返回值。
+     */
     setRefreshRate(rate = 10) {
       clearInterval(this.refreshTimer);
-      this.refreshTimer = setInterval(() => {
-        if (this.playing) {
-          this.sendFrameUpdate();
-        }
-      }, 1000 / rate);
+      this.refreshTimer = setInterval(
+        /**
+         * 在定时器或动画帧触发时，执行 this.sendFrameUpdate。
+         * 无参数。
+         * @returns {void} 无返回值。
+         */
+        () => {
+          if (this.playing) {
+            this.sendFrameUpdate();
+          }
+        },
+        1000 / rate
+      );
     }
 
+    /**
+     * 读取当前索引对应的曲目。
+     * 无参数。
+     * @returns {Object|undefined} 当前索引的曲目，空队列时为 undefined。
+     */
     get currentAudio() {
       return this.playlist[this.index];
     }
 
+    /**
+     * 读取当前曲目的 Howl 实例；没有曲目时返回空值。
+     * 无参数。
+     * @returns {Howl|undefined} 当前曲目的 Howl 引用；尚未创建时为空值。
+     */
     get currentHowl() {
       return this.currentAudio && this.currentAudio.howl;
     }
 
+    /**
+     * 查询当前音频是否正在播放，没有实例时返回 false。
+     * 无参数。
+     * @returns {boolean} 当前音频是否正在播放。
+     */
     get playing() {
       return this.currentHowl ? this.currentHowl.playing() : false;
     }
 
+    /**
+     * 读取 Howler 的全局静音状态。
+     * 无参数。
+     * @returns {boolean} Howler 的全局静音状态。
+     */
     // eslint-disable-next-line class-methods-use-this
     get muted() {
       return !!Howler._muted;
     }
 
+    /**
+     * 按 ID 去重后插入单首曲目，必要时移动当前索引并发送队列快照。
+     * @param audio 待加入或操作的曲目对象；使用 id 字段。
+     * @param idx 目标队列索引。
+     * @returns {void} 无返回值。
+     */
     insertAudio(audio, idx) {
       if (!audio || !audio.id) return;
-      if (this.playlist.find((i) => audio.id === i.id)) return;
+      if (
+        this.playlist.find(
+          /**
+           * 筛选检查 this.playlist 中的条目，audio.id 是否严格等于 i.id。
+           * @param i 来自 this.playlist 的当前条目；使用 id 字段。
+           * @returns {boolean} audio.id 是否严格等于 i.id。
+           */
+          (i) => audio.id === i.id
+        )
+      )
+        return;
 
       const audioData = {
         ...audio,
-        disabled: false, // avoid first time load block
+        disabled: false, // 首次载入时避免阻塞初始化。
         howl: null,
       };
       if (typeof idx === 'number') {
-        // Keep the queue flat even when inserting at the head of the list.
+        // 即使在队首插入也保持队列为一维数组。
         this.playlist.splice(idx, 0, audioData);
       } else {
         this.playlist.push(audioData);
@@ -92,6 +203,13 @@
       this.sendLoadEvent();
     }
 
+    /**
+     * 在同一数组内移动元素，目标超出长度时先补空位。
+     * @param arr 待移动或格式化的数组；使用 push、splice 字段。
+     * @param old_index 移动前的数组索引。
+     * @param new_index 移动后的数组索引。
+     * @returns {*} arr。
+     */
     static array_move(arr, old_index, new_index) {
       // https://stackoverflow.com/questions/5306680/move-an-array-element-from-one-array-position-to-another
       if (new_index >= arr.length) {
@@ -102,13 +220,34 @@
         }
       }
       arr.splice(new_index, 0, arr.splice(old_index, 1)[0]);
-      return arr; // for testing
+      return arr; // 保留的测试调用。
     }
 
+    /**
+     * 将曲目放到目标曲目前后，重排后仍按 ID 保留当前播放曲目。
+     * @param audio 待加入或操作的曲目对象；使用 id 字段。
+     * @param to_audio 作为插入位置参照的目标曲目；使用 id 字段。
+     * @param direction 插入或切换方向，使用调用方约定的前后标记。
+     * @returns {void} 无返回值。
+     */
     insertAudioByDirection(audio, to_audio, direction) {
       const originTrack = this.playlist[this.index];
-      const index = this.playlist.findIndex((i) => i.id === audio.id);
-      let insertIndex = this.playlist.findIndex((i) => i.id === to_audio.id);
+      const index = this.playlist.findIndex(
+        /**
+         * 筛选检查 this.playlist 中的条目，i.id 是否严格等于 audio.id。
+         * @param i 来自 this.playlist 的当前条目；使用 id 字段。
+         * @returns {boolean} i.id 是否严格等于 audio.id。
+         */
+        (i) => i.id === audio.id
+      );
+      let insertIndex = this.playlist.findIndex(
+        /**
+         * 筛选检查 this.playlist 中的条目，i.id 是否严格等于 to_audio.id。
+         * @param i 来自 this.playlist 的当前条目；使用 id 字段。
+         * @returns {boolean} i.id 是否严格等于 to_audio.id。
+         */
+        (i) => i.id === to_audio.id
+      );
       if (index < 0 || insertIndex < 0 || index === insertIndex) {
         return;
       }
@@ -122,6 +261,11 @@
         insertIndex + offset
       );
       const foundOriginTrackIndex = this.playlist.findIndex(
+        /**
+         * 筛选检查 this.playlist 中的条目，originTrack 且 i.id 是否严格等于 originTrack.id。
+         * @param i 来自 this.playlist 的当前条目；使用 id 字段。
+         * @returns {*} originTrack 且 i.id 是否严格等于 originTrack.id。
+         */
         (i) => originTrack && i.id === originTrack.id
       );
       if (foundOriginTrackIndex >= 0) {
@@ -133,11 +277,16 @@
       this.sendLoadEvent();
     }
 
+    /**
+     * 移除队列曲目并释放其音频和缓存；删除当前曲目时取消待处理操作并按原播放状态选择下一首。
+     * @param idx 目标队列索引。
+     * @returns {void} 无返回值。
+     */
     removeAudio(idx) {
       if (!this.playlist[idx]) {
         return;
       }
-      // restore playing status before change
+      // 修改队列前保存当前播放状态。
       const isPlaying = this.playing || !!this._pending;
       const trackId = this.currentAudio && this.currentAudio.id;
       const removed = this.playlist[idx];
@@ -153,11 +302,18 @@
       delete this._media_expiry[removed.id];
       this._loadRetries.delete(removed.id);
       this._random_playlist = [];
-      const newIndex = this.playlist.findIndex((i) => i.id === trackId);
+      const newIndex = this.playlist.findIndex(
+        /**
+         * 筛选检查 this.playlist 中的条目，i.id 是否严格等于 trackId。
+         * @param i 来自 this.playlist 的当前条目；使用 id 字段。
+         * @returns {boolean} i.id 是否严格等于 trackId。
+         */
+        (i) => i.id === trackId
+      );
       if (newIndex >= 0) {
         this.index = newIndex;
       } else {
-        // current playing is deleted
+        // 被删除的是当前曲目。
         if (idx >= this.playlist.length) {
           this.index = this.playlist.length - 1;
         } else {
@@ -173,25 +329,58 @@
       this.sendPlayingEvent('Removed');
     }
 
+    /**
+     * 过滤无效或重复 ID 后批量追加，只发送一次完整队列快照；空队列首次追加时加载首项。
+     * @param list 待应用的曲目数组。
+     * @returns {void} 无返回值。
+     */
     appendAudioList(list) {
       if (!Array.isArray(list)) {
         return;
       }
-      const ids = new Set(this.playlist.map((audio) => audio.id));
-      const additions = list.filter((audio) => {
-        if (!audio || !audio.id || ids.has(audio.id)) return false;
-        ids.add(audio.id);
-        return true;
-      });
+      const ids = new Set(
+        this.playlist.map(
+          /**
+           * 转换 this.playlist 中的条目，audio.id。
+           * @param audio 来自 this.playlist 的当前条目；使用 id 字段。
+           * @returns {*} audio.id。
+           */
+          (audio) => audio.id
+        )
+      );
+      const additions = list.filter(
+        /**
+         * 筛选检查 list 中的条目，执行 ids.has。
+         * @param audio 来自 list 的当前条目；使用 id 字段。
+         * @returns {boolean} false；其他分支返回 true。
+         */
+        (audio) => {
+          if (!audio || !audio.id || ids.has(audio.id)) return false;
+          ids.add(audio.id);
+          return true;
+        }
+      );
       if (!additions.length) return;
       this.playlist.push(
-        ...additions.map((audio) => ({ ...audio, disabled: false, howl: null }))
+        ...additions.map(
+          /**
+           * 转换 additions 中的条目，包含 展开字段、disabled、howl 的对象。
+           * @param audio 来自 additions 的当前条目。
+           * @returns {Object} 包含 展开字段、disabled、howl 的对象。
+           */
+          (audio) => ({ ...audio, disabled: false, howl: null })
+        )
       );
       this._random_playlist = [];
       this.sendPlaylistEvent();
       this.sendLoadEvent();
     }
 
+    /**
+     * 取消请求、卸载音频并清空队列与索引，按 notify 决定是否广播清空结果。
+     * @param [notify] 是否发送队列变化事件；默认值为 true。
+     * @returns {void} 无返回值。
+     */
     clearPlaylist(notify = true) {
       this.cancelPending();
       this.unloadAll();
@@ -208,37 +397,80 @@
       }
     }
 
+    /**
+     * 停止队列中已有的所有 Howl 实例。
+     * 无参数。
+     * @returns {void} 无返回值。
+     */
     stopAll() {
-      this.playlist.forEach((i) => {
-        if (i.howl) {
-          i.howl.stop();
+      this.playlist.forEach(
+        /**
+         * 逐项处理 this.playlist 中的条目，执行 i.howl.stop。
+         * @param i 来自 this.playlist 的当前条目；使用 howl 字段。
+         * @returns {void} 无返回值。
+         */
+        (i) => {
+          if (i.howl) {
+            i.howl.stop();
+          }
         }
-      });
+      );
     }
 
+    /**
+     * 卸载 Howler 音频并清除曲目对原生实例的引用。
+     * 无参数。
+     * @returns {void} 无返回值。
+     */
     unloadAll() {
-      this.playlist.forEach((track) => {
-        if (track.howl) track.howl.unload();
-        track.howl = null; // eslint-disable-line no-param-reassign -- release the queued track's native audio resource
-      });
+      this.playlist.forEach(
+        /**
+         * 逐项处理 this.playlist 中的条目，更新 track.howl，执行 track.howl.unload。
+         * @param track 来自 this.playlist 的当前条目；使用 howl 字段。
+         * @returns {void} 无返回值。
+         */
+        (track) => {
+          if (track.howl) track.howl.unload();
+          track.howl = null; // eslint-disable-line no-param-reassign -- 释放队列曲目关联的原生音频资源
+        }
+      );
     }
 
+    /**
+     * 清理旧队列、过滤无效及重复 ID 后替换列表，加载首项并广播新的完整快照。
+     * @param list 待应用的曲目数组。
+     * @returns {void} 无返回值。
+     */
     setNewPlaylist(list) {
       if (!Array.isArray(list)) return;
       this.clearPlaylist(false);
       if (list.length) {
         const ids = new Set();
         this.playlist = list
-          .filter((audio) => {
-            if (!audio || !audio.id || ids.has(audio.id)) return false;
-            ids.add(audio.id);
-            return true;
-          })
-          .map((audio) => ({
-            ...audio,
-            howl: null,
-          }));
-        // TODO: random mode need random choose first song to load
+          .filter(
+            /**
+             * 筛选检查 list 中的条目，执行 ids.has。
+             * @param audio 来自 list 的当前条目；使用 id 字段。
+             * @returns {boolean} false；其他分支返回 true。
+             */
+            (audio) => {
+              if (!audio || !audio.id || ids.has(audio.id)) return false;
+              ids.add(audio.id);
+              return true;
+            }
+          )
+          .map(
+            /**
+             * 转换 list.filter() 中的条目，包含 展开字段、howl 的对象。
+             * @param audio 来自 list.filter() 的当前条目。
+             * @returns {Object} 包含 展开字段、howl 的对象。
+             */
+            (audio) => ({
+              ...audio,
+              howl: null,
+            })
+          );
+        // TODO：随机模式首次加载仍可改为随机选择曲目。
         this.index = this.playlist.length ? 0 : -1;
         this.load(0);
       }
@@ -247,20 +479,44 @@
       this.sendPlayingEvent('QueueChanged');
     }
 
+    /**
+     * 查找曲目 ID，再按索引执行播放。
+     * @param id 目标条目的唯一标识。
+     * @returns {void} 无返回值。
+     */
     playById(id) {
-      const idx = this.playlist.findIndex((audio) => audio.id === id);
+      const idx = this.playlist.findIndex(
+        /**
+         * 筛选检查 this.playlist 中的条目，audio.id 是否严格等于 id。
+         * @param audio 来自 this.playlist 的当前条目；使用 id 字段。
+         * @returns {boolean} audio.id 是否严格等于 id。
+         */
+        (audio) => audio.id === id
+      );
       if (idx >= 0) this.play(idx);
     }
 
+    /**
+     * 查找曲目 ID，取消旧请求后加载该项但不自动播放。
+     * @param id 目标条目的唯一标识。
+     * @returns {void} 无返回值。
+     */
     loadById(id) {
-      const idx = this.playlist.findIndex((audio) => audio.id === id);
+      const idx = this.playlist.findIndex(
+        /**
+         * 筛选检查 this.playlist 中的条目，audio.id 是否严格等于 id。
+         * @param audio 来自 this.playlist 的当前条目；使用 id 字段。
+         * @returns {boolean} audio.id 是否严格等于 id。
+         */
+        (audio) => audio.id === id
+      );
       this.load(idx);
     }
 
     /**
-     * Play a song in the playlist.
-     * @param  {Number} index Index of the song in the playlist
-     * (leave empty to play the first or current).
+     * 选择有效索引，检查地址缓存是否过期，再解析地址或使用已有地址播放。
+     * @param {Number} idx 目标队列索引。
+     * @returns {void} 无返回值。
      */
     play(idx) {
       if (!this.playlist.length) return;
@@ -278,6 +534,12 @@
       }
     }
 
+    /**
+     * 为当前曲目请求播放地址，共享同曲目的在途请求；用代次校验丢弃过期回调，失败后禁用曲目并尝试切歌。
+     * @param index 当前条目的零起点索引。
+     * @param playNow 加载成功后是否立即播放。
+     * @returns {void} 无返回值。
+     */
     retrieveMediaUrl(index, playNow) {
       const track = this.playlist[index];
       if (!track) return;
@@ -290,10 +552,15 @@
       }
       const pending = { id: track.id, task: null };
       this._pending = pending;
+      /**
+       * 检查播放代次和当前曲目是否仍与本次异步操作一致。
+       * 无参数。
+       * @returns {*} generation 是否严格等于 this._generation 且 this.currentAudio 是否严格等于 统一曲目对象 track。
+       */
       const isCurrent = () =>
         generation === this._generation && this.currentAudio === track;
-      // Providers may return a direct URL from the original source or from a
-      // mirror provider selected by MediaService.bootstrapTrack.
+      // 地址可能来自原始平台，
+      // 也可能来自 MediaService 选中的备用来源。
       const msg = {
         type: 'BG_PLAYER:RETRIEVE_URL',
         data: {
@@ -306,6 +573,11 @@
 
       pending.task = MediaService.bootstrapTrack(
         msg.data,
+        /**
+         * 进入此回调后，更新 this._pending、msg.type、msg.data、track.bitrate，执行 isCurrent。
+         * @param bootinfo 解析播放地址时返回的平台和码率信息；使用 bitrate、platform 字段。
+         * @returns {void} 无返回值。
+         */
         (bootinfo) => {
           if (!isCurrent()) return;
           this._pending = null;
@@ -322,6 +594,11 @@
           this.finishLoad(msg.data.index, playNow);
           playerSendMessage(this.mode, msg);
         },
+        /**
+         * 进入此回调后，更新 this._pending、msg.type、msg.data.error、msg.data.index，执行 isCurrent。
+         * @param error 被捕获或传入的异常。
+         * @returns {void} 无返回值。
+         */
         (error) => {
           if (!isCurrent()) return;
           this._pending = null;
@@ -338,9 +615,9 @@
     }
 
     /**
-     * Load a song from the playlist.
-     * @param  {Number} index Index of the song in the playlist
-     * (leave empty to load the first or current).
+     * 切换当前曲目并停止其他音频，广播加载事件，防止多首同时播放。
+     * @param {Number} idx 目标队列索引。
+     * @returns {void} 无返回值。
      */
     load(idx) {
       if (!this.playlist.length) return;
@@ -349,7 +626,7 @@
       if (!this.playlist[index]) {
         index = 0;
       }
-      // stop when load new track to avoid multiple songs play in same time
+      // 加载新曲目前停止旧音频，避免同时播放。
       if (index !== this.index) {
         this.cancelPending();
         this.unloadAll();
@@ -359,16 +636,32 @@
       this.sendLoadEvent();
     }
 
+    /**
+     * 创建或复用 HTML5 Howl，绑定受播放代次保护的事件；加载失败最多重新解析一次地址，并设置播放超时。
+     * @param index 当前条目的零起点索引。
+     * @param playNow 加载成功后是否立即播放。
+     * @returns {void} 无返回值。
+     */
     finishLoad(index, playNow) {
       const data = this.playlist[index];
       if (!data || data !== this.currentAudio) return;
 
-      // If we already loaded this track, use the current one.
-      // Otherwise, setup and load a new Howl.
+      // 已有对应 Howl 时复用，
+      // 否则创建新的音频实例。
       const self = this;
       const generation = this._generation;
+      /**
+       * 检查播放代次和当前曲目是否仍与本次异步操作一致。
+       * 无参数。
+       * @returns {*} generation 是否严格等于 self._generation 且 self.currentAudio 是否严格等于 data。
+       */
       const isCurrent = () =>
         generation === self._generation && self.currentAudio === data;
+      /**
+       * 使当前地址缓存失效并清理超时；首次失败重试地址解析，再失败则禁用曲目并跳过。
+       * @param err 异步操作的错误；成功回调通常为 null。
+       * @returns {void} 无返回值。
+       */
       const failLoad = (err) => {
         if (!isCurrent()) return;
         clearTimeout(self._loadTimer);
@@ -392,10 +685,15 @@
       if (!data.howl) {
         data.howl = new Howl({
           src: [self._media_uri_list[data.id]],
-          format: 'mp3', // bypass Howl checking url extension, issue #1200
+          format: 'mp3', // 明确格式以绕过 Howl 对 URL 扩展名的检查，参见问题 #1200。
           volume: 1,
           mute: self.muted,
-          html5: true, // Force to HTML5 so that the audio can stream in (best for large files).
+          html5: true, // 使用 HTML5 音频进行流式加载，避免整首音频先进入缓冲。
+          /**
+           * 确认回调未过期后清理超时，记录播放开始时间并更新媒体会话元数据和播放状态。
+           * 无参数。
+           * @returns {void} 无返回值。
+           */
           onplay() {
             if (!isCurrent()) return;
             clearTimeout(self._loadTimer);
@@ -417,15 +715,25 @@
               });
             }
             self.currentAudio.disabled = false;
-            // Date.now() returns a millisecond timestamp that needs to be converted to a second timestamp
+            // 把 Date.now() 的毫秒时间戳换算为收听记录所需的秒。
             self.playedFrom = Math.round(Date.now() / 1000);
             self.sendPlayingEvent('Playing');
           },
+          /**
+           * 仅对当前曲目更新加载状态，忽略已被切换的音频实例。
+           * 无参数。
+           * @returns {void} 无返回值。
+           */
           onload() {
             if (!isCurrent()) return;
             self.currentAudio.disabled = false;
             self.sendPlayingEvent('Loaded');
           },
+          /**
+           * 根据当前循环模式重复、随机或顺序切换，并同步播放结束状态。
+           * 无参数。
+           * @returns {void} 无返回值。
+           */
           onend() {
             if (!isCurrent()) return;
             switch (self.loop_mode) {
@@ -444,21 +752,53 @@
             }
             self.sendPlayingEvent('Ended');
           },
+          /**
+           * 在音频暂停后同步有效实例的播放状态。
+           * 无参数。
+           * @returns {void} 无返回值。
+           */
           onpause() {
             if (!isCurrent()) return;
             if (navigator.mediaSession)
               navigator.mediaSession.playbackState = 'paused';
             self.sendPlayingEvent('Paused');
           },
+          /**
+           * 在音频停止后同步有效实例的播放状态。
+           * 无参数。
+           * @returns {void} 无返回值。
+           */
           onstop() {
             if (!isCurrent()) return;
             self.sendPlayingEvent('Stopped');
           },
+          /**
+           * 在有效实例完成跳转后推送进度。
+           * 无参数。
+           * @returns {void} 无返回值。
+           */
           onseek() {},
+          /**
+           * 在有效实例音量变化后推送音量状态。
+           * 无参数。
+           * @returns {void} 无返回值。
+           */
           onvolume() {},
+          /**
+           * 把加载错误交给当前曲目的重试与失败处理。
+           * @param id 目标条目的唯一标识；当前函数体未使用，保留调用签名。
+           * @param err 异步操作的错误；成功回调通常为 null。
+           * @returns {void} 无返回值。
+           */
           onloaderror(id, err) {
             failLoad(err);
           },
+          /**
+           * 把播放错误交给当前曲目的重试与失败处理。
+           * @param id 目标条目的唯一标识；当前函数体未使用，保留调用签名。
+           * @param err 异步操作的错误；成功回调通常为 null。
+           * @returns {void} 无返回值。
+           */
           onplayerror(id, err) {
             failLoad(err);
           },
@@ -469,34 +809,52 @@
         if (this.playing && index === this.index) {
           return;
         }
-        this.playlist.forEach((i) => {
-          if (i.howl && i.howl !== this.currentHowl) {
-            i.howl.stop();
+        this.playlist.forEach(
+          /**
+           * 逐项处理 this.playlist 中的条目，执行 i.howl.stop。
+           * @param i 来自 this.playlist 的当前条目；使用 howl 字段。
+           * @returns {void} 无返回值。
+           */
+          (i) => {
+            if (i.howl && i.howl !== this.currentHowl) {
+              i.howl.stop();
+            }
           }
-        });
+        );
         this.currentHowl.play();
         clearTimeout(this._loadTimer);
-        this._loadTimer = setTimeout(() => {
-          if (!this.playing) failLoad('LOAD_TIMEOUT');
-        }, 15000);
+        this._loadTimer = setTimeout(
+          /**
+           * 在定时器或动画帧触发时，执行 failLoad（"LOAD_TIMEOUT"）。
+           * 无参数。
+           * @returns {void} 无返回值。
+           */
+          () => {
+            if (!this.playing) failLoad('LOAD_TIMEOUT');
+          },
+          15000
+        );
       }
     }
 
     /**
-     * Pause the currently playing track.
+     * 暂停当前音频并推送暂停状态。
+     * 无参数。
+     * @returns {void} 无返回值。
      */
     pause() {
       if (this._pending) this.cancelPending();
       clearTimeout(this._loadTimer);
       if (!this.currentHowl) return;
 
-      // Puase the sound.
+      // 暂停音频。
       this.currentHowl.pause();
     }
 
     /**
-     * Skip to the next or previous track.
-     * @param  {String} direction 'next' or 'prev'.
+     * 按顺序或随机映射选择前后曲目，跳过禁用项；整队都不可用时发送失败事件。
+     * @param {String} direction 插入或切换方向，使用调用方约定的前后标记。
+     * @returns {void} 无返回值。
      */
     skip(direction) {
       this.cancelPending();
@@ -505,7 +863,12 @@
         return;
       }
       this.unloadAll();
-      // Get the next track based on the direction of the track.
+      // 根据方向计算下一候选曲目。
+      /**
+       * 根据方向和循环模式计算下一候选索引，保持索引落在队列范围内。
+       * @param idx 目标队列索引。
+       * @returns {*} 整理后的结果 result。
+       */
       const nextIndexFn = (idx) => {
         const l = this.playlist.length;
         const random_mode = this._loop_mode === 2 || direction === 'random';
@@ -514,8 +877,17 @@
 
         if (random_mode) {
           if (this._random_playlist.length / 2 !== l) {
-            // construction random playlist
-            const a = Array.from({ length: l }, (_v, i) => i);
+            // 构造随机队列顺序及逆向索引。
+            const a = Array.from(
+              { length: l },
+              /**
+               * 进入此回调后，取得 i。
+               * @param _v 数组或类数组输入中的当前值；当前函数体未使用，保留调用签名。
+               * @param i 当前条目的零起点索引。
+               * @returns {*} i。
+               */
+              (_v, i) => i
+            );
             for (let i = 0; i < l; i += 1) {
               const e = l - i - 1;
               const s = Math.floor(Math.random() * (e + 1));
@@ -528,7 +900,7 @@
           }
           rdx = this._random_playlist[idx + l] ?? -1;
         } else if (this._random_playlist.length !== 0) {
-          // clear random playlist
+          // 清除旧的随机队列映射。
           this._random_playlist = [];
         }
 
@@ -560,6 +932,11 @@
       this.sendLoadEvent();
     }
 
+    /**
+     * 接受 all、one、shuffle 名称或对应的 0、1、2 编号更新循环模式；其他输入保持原状态。
+     * @param input 待校验或转换的输入值。
+     * @returns {void} 无返回值；赋值操作更新相应播放器状态。
+     */
     set loop_mode(input) {
       const LOOP_MODE = {
         all: 0,
@@ -578,16 +955,22 @@
       this._loop_mode = myMode;
     }
 
+    /**
+     * 读取当前播放循环模式，不修改队列或播放位置。
+     * 无参数。
+     * @returns {number} 当前循环模式编号：0 为列表循环，1 为单曲循环，2 为随机。
+     */
     get loop_mode() {
       return this._loop_mode;
     }
 
     /**
-     * Set the volume and update the volume slider display.
-     * @param  {Number} val Volume between 0 and 1.
+     * 把数值交给 Howler 设置全局音量，并发送音量及播放帧事件；非数值输入保持原状态，数值范围由 Howler 处理。
+     * @param {Number} val 待设置的 0 至 1 音量比例。
+     * @returns {void} 无返回值；赋值操作更新相应播放器状态。
      */
     set volume(val) {
-      // Update the global volume (affecting all Howls).
+      // 更新影响所有 Howl 实例的全局音量。
       if (typeof val === 'number') {
         Howler.volume(val);
         this.sendVolumeEvent();
@@ -595,11 +978,21 @@
       }
     }
 
+    /**
+     * 读取 Howler 的全局音量，供页面状态同步与音量调整使用。
+     * 无参数。
+     * @returns {number} Howler 全局音量，范围为 0 至 1。
+     */
     // eslint-disable-next-line class-methods-use-this
     get volume() {
       return Howler.volume();
     }
 
+    /**
+     * 按 0.1 的步长增减音量，并限制在 0 至 1。
+     * @param inc 是否增加音量；否则降低。
+     * @returns {void} 无返回值。
+     */
     adjustVolume(inc) {
       this.volume = inc
         ? Math.min(this.volume + 0.1, 1)
@@ -608,6 +1001,11 @@
       this.sendFrameUpdate();
     }
 
+    /**
+     * 开启全局静音并通知音量状态。
+     * 无参数。
+     * @returns {void} 无返回值。
+     */
     mute() {
       Howler.mute(true);
       playerSendMessage(this.mode, {
@@ -616,6 +1014,11 @@
       });
     }
 
+    /**
+     * 关闭全局静音并通知音量状态。
+     * 无参数。
+     * @returns {void} 无返回值。
+     */
     unmute() {
       Howler.mute(false);
       playerSendMessage(this.mode, {
@@ -625,25 +1028,28 @@
     }
 
     /**
-     * Seek to a new position in the currently playing track.
-     * @param  {Number} per Percentage through the song to skip.
+     * 将 0 至 1 的播放比例换算为秒并跳转，随后推送进度。
+     * @param {Number} per 0 至 1 的比例，页面音量门面另使用 0 至 100。
+     * @returns {void} 无返回值。
      */
     seek(per) {
       if (!this.currentHowl) return;
 
-      // Get the Howl we want to manipulate.
+      // 取得当前待操作的 Howl 实例。
       const audio = this.currentHowl;
 
-      // Convert the percent into a seek position.
+      // 将比例转换为秒数位置。
+      // 停用代码，保留供历史对照：
       // if (audio.playing()) {
       // }
       audio.seek(audio.duration() * per);
     }
-    /**
-     * Seek to a new position in the currently playing track.
-     * @param {Number} seconds Seconds through the song to skip.
-     */
 
+    /**
+     * 以秒为单位跳转当前音频，并推送新进度。
+     * @param {Number} seconds 以秒为单位的播放位置。
+     * @returns {void} 无返回值。
+     */
     seekTime(seconds) {
       if (!this.currentHowl) return;
       const audio = this.currentHowl;
@@ -651,9 +1057,9 @@
     }
 
     /**
-     * Format the time from seconds to M:SS.
-     * @param  {Number} secs Seconds to format.
-     * @return {String}      Formatted time.
+     * 将秒数向下取整并格式化为分钟与两位秒数。
+     * @param {Number} secs 待格式化的秒数。
+     * @returns {String} 以分钟和两位秒数表示的时间。
      */
     static formatTime(secs) {
       const minutes = Math.floor(secs / 60) || 0;
@@ -662,6 +1068,12 @@
       return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
     }
 
+    /**
+     * 按曲目 ID 缓存播放 URL，并写入五分钟后的过期时间；第二个形参 url 实际作为曲目 ID 使用。
+     * @param uri 实际的媒体播放 URL。
+     * @param url 作为缓存键的曲目 ID，虽然形参名为 url，但这里不是媒体地址。
+     * @returns {void} 无返回值。
+     */
     setMediaURI(uri, url) {
       if (url) {
         this._media_uri_list[url] = uri;
@@ -669,12 +1081,23 @@
       }
     }
 
+    /**
+     * 修改指定队列项的禁用标记。
+     * @param disabled 是否标记曲目为不可用。
+     * @param idx 目标队列索引。
+     * @returns {void} 无返回值。
+     */
     setAudioDisabled(disabled, idx) {
       if (this.playlist[idx]) {
         this.playlist[idx].disabled = disabled;
       }
     }
 
+    /**
+     * 向页面推送当前秒数、时长和进度比例，并更新媒体会话位置。
+     * 无参数。
+     * @returns {Promise<void>} 异步完成后无返回值；拒绝由调用链处理。
+     */
     async sendFrameUpdate() {
       const data = {
         id: this.currentAudio ? this.currentAudio.id : 0,
@@ -702,6 +1125,11 @@
       });
     }
 
+    /**
+     * 推送播放状态及触发原因。
+     * @param [reason] 播放状态事件的原因标记；默认值为 "UNKNOWN"。
+     * @returns {Promise<void>} 异步完成后无返回值；拒绝由调用链处理。
+     */
     async sendPlayingEvent(reason = 'UNKNOWN') {
       playerSendMessage(this.mode, {
         type: 'BG_PLAYER:PLAY_STATE',
@@ -712,6 +1140,11 @@
       });
     }
 
+    /**
+     * 推送当前曲目和加载索引，供页面刷新元数据与歌词。
+     * 无参数。
+     * @returns {Promise<void>} 异步完成后无返回值；拒绝由调用链处理。
+     */
     async sendLoadEvent() {
       playerSendMessage(this.mode, {
         type: 'BG_PLAYER:LOAD',
@@ -728,6 +1161,11 @@
       });
     }
 
+    /**
+     * 推送全局音量和静音状态。
+     * 无参数。
+     * @returns {Promise<void>} 异步完成后无返回值；拒绝由调用链处理。
+     */
     async sendVolumeEvent() {
       playerSendMessage(this.mode, {
         type: 'BG_PLAYER:VOLUME',
@@ -735,64 +1173,136 @@
       });
     }
 
+    /**
+     * 复制队列并剔除无法跨消息边界传递的 Howl 实例，再发送完整快照。
+     * 无参数。
+     * @returns {Promise<void>} 异步完成后无返回值；拒绝由调用链处理。
+     */
     async sendPlaylistEvent() {
-      // Howl instances cannot be cloned or sent across extension/Electron
-      // message boundaries, so strip them from every outbound playlist event.
+      // Howl 实例无法直接复制或跨页面传递，
+      // 因此每次队列事件都去掉实例引用。
       playerSendMessage(this.mode, {
         type: 'BG_PLAYER:PLAYLIST',
-        data: this.playlist.map((audio) => ({ ...audio, howl: undefined })),
+        data: this.playlist.map(
+          /**
+           * 转换 this.playlist 中的条目，包含 展开字段、howl 的对象。
+           * @param audio 来自 this.playlist 的当前条目。
+           * @returns {Object} 包含 展开字段、howl 的对象。
+           */
+          (audio) => ({ ...audio, howl: undefined })
+        ),
       });
     }
   }
 
-  // Setup our new audio player class and pass it the playlist.
+  // 创建初始为空的播放器并暴露给页面桥。
 
+  /**
+   * threadPlayer：当前页面中的播放核心实例；文件名不表示创建了独立线程；类型为 Player。
+   * @type {Player}
+   */
   const threadPlayer = new Player();
   threadPlayer.setRefreshRate();
   window.threadPlayer = threadPlayer;
 
   if ('mediaSession' in navigator) {
     const { mediaSession } = navigator;
-    mediaSession.setActionHandler('play', () => {
-      threadPlayer.play();
-    });
-    mediaSession.setActionHandler('pause', () => {
-      threadPlayer.pause();
-    });
-    mediaSession.setActionHandler('seekforward', (details) => {
-      // User clicked "Seek Forward" media notification icon.
-      const { currentHowl } = threadPlayer;
-      if (!currentHowl) return;
-      const skipTime = details.seekOffset || threadPlayer.skipTime;
-      const newTime = Math.min(
-        currentHowl.seek() + skipTime,
-        currentHowl.duration()
-      );
-      threadPlayer.seekTime(newTime);
-      threadPlayer.sendFrameUpdate();
-    });
-    mediaSession.setActionHandler('seekbackward', (details) => {
-      // User clicked "Seek Backward" media notification icon.
-      const { currentHowl } = threadPlayer;
-      if (!currentHowl) return;
-      const skipTime = details.seekOffset || threadPlayer.skipTime;
-      const newTime = Math.max(currentHowl.seek() - skipTime, 0);
-      threadPlayer.seekTime(newTime);
-      threadPlayer.sendFrameUpdate();
-    });
-    mediaSession.setActionHandler('seekto', (details) => {
-      const { seekTime } = details;
-      threadPlayer.seekTime(seekTime);
-      threadPlayer.sendFrameUpdate();
-    });
-    mediaSession.setActionHandler('nexttrack', () => {
-      threadPlayer.skip('next');
-      threadPlayer.sendFrameUpdate();
-    });
-    mediaSession.setActionHandler('previoustrack', () => {
-      threadPlayer.skip('prev');
-      threadPlayer.sendFrameUpdate();
-    });
+    mediaSession.setActionHandler(
+      'play',
+      /**
+       * 响应 "play" 事件，执行 threadPlayer.play。
+       * 无参数。
+       * @returns {void} 无返回值。
+       */
+      () => {
+        threadPlayer.play();
+      }
+    );
+    mediaSession.setActionHandler(
+      'pause',
+      /**
+       * 响应 "pause" 事件，执行 threadPlayer.pause。
+       * 无参数。
+       * @returns {void} 无返回值。
+       */
+      () => {
+        threadPlayer.pause();
+      }
+    );
+    mediaSession.setActionHandler(
+      'seekforward',
+      /**
+       * 响应 "seekforward" 事件，执行 threadPlayer.sendFrameUpdate。
+       * @param details Electron 提供的请求详情，含 URL 和请求头；使用 seekOffset 字段。
+       * @returns {void} 无返回值。
+       */
+      (details) => {
+        // 处理系统媒体通知中的快进操作。
+        const { currentHowl } = threadPlayer;
+        if (!currentHowl) return;
+        const skipTime = details.seekOffset || threadPlayer.skipTime;
+        const newTime = Math.min(
+          currentHowl.seek() + skipTime,
+          currentHowl.duration()
+        );
+        threadPlayer.seekTime(newTime);
+        threadPlayer.sendFrameUpdate();
+      }
+    );
+    mediaSession.setActionHandler(
+      'seekbackward',
+      /**
+       * 响应 "seekbackward" 事件，执行 threadPlayer.sendFrameUpdate。
+       * @param details Electron 提供的请求详情，含 URL 和请求头；使用 seekOffset 字段。
+       * @returns {void} 无返回值。
+       */
+      (details) => {
+        // 处理系统媒体通知中的快退操作。
+        const { currentHowl } = threadPlayer;
+        if (!currentHowl) return;
+        const skipTime = details.seekOffset || threadPlayer.skipTime;
+        const newTime = Math.max(currentHowl.seek() - skipTime, 0);
+        threadPlayer.seekTime(newTime);
+        threadPlayer.sendFrameUpdate();
+      }
+    );
+    mediaSession.setActionHandler(
+      'seekto',
+      /**
+       * 响应 "seekto" 事件，执行 threadPlayer.sendFrameUpdate。
+       * @param details Electron 提供的请求详情，含 URL 和请求头。
+       * @returns {void} 无返回值。
+       */
+      (details) => {
+        const { seekTime } = details;
+        threadPlayer.seekTime(seekTime);
+        threadPlayer.sendFrameUpdate();
+      }
+    );
+    mediaSession.setActionHandler(
+      'nexttrack',
+      /**
+       * 响应 "nexttrack" 事件，执行 threadPlayer.sendFrameUpdate。
+       * 无参数。
+       * @returns {void} 无返回值。
+       */
+      () => {
+        threadPlayer.skip('next');
+        threadPlayer.sendFrameUpdate();
+      }
+    );
+    mediaSession.setActionHandler(
+      'previoustrack',
+      /**
+       * 响应 "previoustrack" 事件，执行 threadPlayer.sendFrameUpdate。
+       * 无参数。
+       * @returns {void} 无返回值。
+       */
+      () => {
+        threadPlayer.skip('prev');
+        threadPlayer.sendFrameUpdate();
+      }
+    );
   }
   playerSendMessage(threadPlayer.mode, {
     type: 'BG_PLAYER:READY',
