@@ -615,9 +615,16 @@ const MediaService = {
    * @param album_id 来源专辑 ID，供歌词接口按需使用。
    * @param lyric_url 来源返回的原文歌词下载地址。
    * @param tlyric_url 来源返回的译文歌词下载地址。
-   * @returns {*} RequestTask.legacy 的调用结果。
+   * @param options 可选；original 为 true 时绕过桌面歌词替换。
+   * @returns {Object} 保持 success/error/cancel/promise 协议的请求任务。
    */
-  getLyric(track_id, album_id, lyric_url, tlyric_url) {
+  getLyric(track_id, album_id, lyric_url, tlyric_url, options = {}) {
+    const replacement =
+      window.listen1Desktop &&
+      !options.original &&
+      window.Lyrics?.getOverride(track_id);
+    if (replacement)
+      return RequestTask.create(({ resolve }) => resolve(replacement));
     const provider = getProviderByItemId(track_id);
     const url = `/lyric?${queryStringify({
       track_id,
@@ -640,8 +647,17 @@ const MediaService = {
   },
 
   /**
+   * 保存本地曲目显示信息到本地库、歌单副本和持久队列。
+   * @param trackId 本地曲目 ID。
+   * @param metadata 歌名、歌手和专辑。
+   * @returns {Object} 已验证的显示字段；存储失败抛出异常。
+   */
+  updateLocalTrack(trackId, metadata) {
+    return localmusic.update_track(trackId, metadata);
+  },
+
+  /**
    * 读取本地收藏歌单索引。
-   * 无参数。
    * @returns {*} myplaylist.show_myplaylist 的调用结果。
    */
   showFavPlaylist() {
@@ -674,7 +690,7 @@ const MediaService = {
    */
   getPlaylist(listId, useCache = true) {
     const provider = getProviderByItemId(listId);
-    const url = `/playlist?list_id=${listId}`;
+    const url = `/playlist?${queryStringify({ list_id: listId })}`;
     let hit = null;
     if (useCache) {
       hit = playlistCache.get(listId);

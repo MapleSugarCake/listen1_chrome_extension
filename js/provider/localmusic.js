@@ -13,13 +13,13 @@
  * - localmusic.lm_artist：读取本地音乐歌手资料与接口提供的歌曲列表，转换为统一列表详情。
  * - localmusic.bootstrap_track：桌面环境按旧曲目 ID 恢复编码后的文件 URL。
  * - localmusic.lyric：从本地歌单查找曲目并取第一份歌词，缺失曲目或歌词时返回空文本。
- * - localmusic.add_playlist：解析可为 JSON 字符串的曲目数组，把新曲目前插并移除旧列表中相同 ID 的项，然后持久化。
+ * - localmusic.add_playlist：解析可为 JSON 字符串的曲目数组，把尚未存在的新曲目前插，保留既有记录与顺序，然后持久化。
  * - localmusic.parse_url：本地来源不解析分享链接，通过回调返回 undefined。
  * - localmusic.get_playlist：按列表 ID 前缀路由本地音乐的歌单、专辑或歌手详情。
  * - localmusic.remove_from_playlist：按 ID 移除本地曲目并保存。
  * - localmusic.get_playlist_filters：当前没有提供筛选分类，通过回调返回空的 recommend 和 all 数组。
  */
-/* eslint-disable no-param-reassign */
+
 /* eslint-disable no-unused-vars */
 /* global getParameterByName */
 /**
@@ -123,7 +123,7 @@ class localmusic {
    * @returns {Object} 含 success 回调入口的旧式结果对象；业务数据在调用该入口后传出。
    */
   static lm_album(url) {
-    const album = getParameterByName('list_id', url).split('_').pop();
+    const album = getParameterByName('list_id', url).slice('lmalbum_'.length);
     return {
       /**
        * 登记或执行旧式成功入口，调用 fn，依次传入 buildFilteredLocalPlaylist 的调用结果；业务结果通过 fn 传出。
@@ -140,7 +140,7 @@ class localmusic {
    * @returns {Object} 含 success 回调入口的旧式结果对象；业务数据在调用该入口后传出。
    */
   static lm_artist(url) {
-    const artist = getParameterByName('list_id', url).split('_').pop();
+    const artist = getParameterByName('list_id', url).slice('lmartist_'.length);
     return {
       /**
        * 登记或执行旧式成功入口，调用 fn，依次传入 buildFilteredLocalPlaylist 的调用结果；业务结果通过 fn 传出。
@@ -217,53 +217,93 @@ class localmusic {
   }
 
   /**
-   * 解析可为 JSON 字符串的曲目数组，把新曲目前插并移除旧列表中相同 ID 的项，然后持久化。
+   * 解析可为 JSON 字符串的曲目数组，把尚未存在的新曲目前插，保留既有记录与顺序，然后持久化。
    * @param list_id 目标歌单或列表 ID。
    * @param tracks 保持来源或调用方顺序的曲目数组；使用 concat 字段。
    * @returns {Object} 含 success 回调入口的旧式结果对象；业务数据在调用该入口后传出。
    */
   static add_playlist(list_id, tracks) {
-    if (typeof tracks === 'string') {
-      tracks = JSON.parse(tracks);
-    }
+    const incoming = typeof tracks === 'string' ? JSON.parse(tracks) : tracks;
     const playlist = getStoredLocalPlaylist(list_id);
-    const tracksIdSet = {};
-    tracks.forEach(
-      /**
-       * 逐项处理 tracks 中的条目，更新 tracksIdSet[tr.id]。
-       * @param tr 来自 tracks 的当前条目；使用 id 字段。
-       * @returns {void} 无返回值。
-       */
-      (tr) => {
-        tracksIdSet[tr.id] = true;
-      }
-    );
-    playlist.tracks = tracks.concat(
-      playlist.tracks.filter(
-        /**
-         * 筛选检查 playlist.tracks 中的条目，tracksIdSet[tr.id] 是否不等于 true。
-         * @param tr 来自 playlist.tracks 的当前条目；使用 id 字段。
-         * @returns {boolean} tracksIdSet[tr.id] 是否不等于 true。
-         */
-        (tr) => tracksIdSet[tr.id] !== true
-      )
-    );
+    const seen = new Set(playlist.tracks.map((track) => track.id));
+    const additions = incoming.filter((track) => {
+      if (seen.has(track.id)) return false;
+      seen.add(track.id);
+      return true;
+    });
+    playlist.tracks = additions.concat(playlist.tracks);
     localStorage.setObject(list_id, playlist);
+    return { success: (fn) => fn({ list_id, playlist }) };
+  }
 
-    return {
-      /**
-       * 登记或执行旧式成功入口，调用 fn，依次传入 包含 list_id、playlist 的对象；业务结果通过 fn 传出。
-       * @param fn 接收处理结果的回调函数。
-       * @returns {*} fn 回调的直接返回值。
-       */
-      success: (fn) => fn({ list_id, playlist }),
+  // Prepare every affected snapshot before writing. Roll back completed writes
+  // on failure; UI/core metadata is published only after persistence succeeds.
+  static update_track(trackId, input) {
+    if (
+      typeof trackId !== 'string' ||
+      !trackId.startsWith('lmtrack_') ||
+      typeof input.title !== 'string' ||
+      !input.title.trim() ||
+      typeof input.artist !== 'string' ||
+      typeof input.album !== 'string'
+    )
+      throw Object.assign(new Error('Invalid local metadata'), {
+        code: 'LOCAL_METADATA',
+      });
+    const fields = {
+      title: input.title.trim(),
+      artist: input.artist.trim(),
+      album: input.album.trim(),
+      artist_id: `lmartist_${input.artist.trim()}`,
+      album_id: `lmalbum_${input.album.trim()}`,
     };
+    const ids = localStorage.getObject('playerlists');
+    const keys = new Set([
+      'lmplaylist_reserve',
+      'current-playing',
+      ...(Array.isArray(ids) ? ids.filter((id) => typeof id === 'string') : []),
+    ]);
+    const changes = [];
+    keys.forEach((key) => {
+      const original = localStorage.getItem(key);
+      const value = localStorage.getObject(key);
+      const tracks = key === 'current-playing' ? value : value?.tracks;
+      if (!Array.isArray(tracks)) return;
+      let changed = false;
+      tracks.forEach((track) => {
+        if (track?.id === trackId) {
+          Object.assign(track, fields);
+          changed = true;
+        }
+      });
+      if (changed)
+        changes.push({ key, original, value: JSON.stringify(value) });
+    });
+    if (!changes.length)
+      throw Object.assign(new Error('Local track not found'), {
+        code: 'LOCAL_TRACK_MISSING',
+      });
+    const completed = [];
+    try {
+      changes.forEach((change) => {
+        localStorage.setItem(change.key, change.value);
+        completed.push(change);
+      });
+    } catch {
+      completed
+        .reverse()
+        .forEach(({ key, original }) => localStorage.setItem(key, original));
+      throw Object.assign(new Error('Metadata could not be saved'), {
+        code: 'LYRIC_STORAGE',
+      });
+    }
+    return fields;
   }
 
   /**
    * 本地来源不解析分享链接，通过回调返回 undefined。
-   * @param url 待解析或请求的地址；来源适配器使用其中的查询参数；当前函数体未使用，保留调用签名。
-   * @returns {Object} 含 success 回调入口的旧式结果对象；业务数据在调用该入口后传出。
+   * @param url 保留的旧接口参数。
+   * @returns {Object} 含 success 回调入口的旧式结果对象。
    */
   static parse_url(url) {
     return {

@@ -25,6 +25,7 @@ controller → l1Player → bridge → threadPlayer / Howler
 | `js/provider/`                                     | 平台和本地音乐数据转换                          |
 | `js/l1_player.js`、`bridge.js`、`player_thread.js` | 播放命令、环境桥接、队列和 Howler 状态          |
 | `js/myplaylist.js`、`lowebutil.js`                 | 歌单存储、Cookie 适配、JSON 容错                |
+| `js/lyrics.js`、`track_management.js`              | 共享 LRC/替换存储、桌面歌曲信息及歌词管理指令   |
 | `js/github.js`、`lastfm.js`                        | OAuth/Gist 和 Last.fm，真实账号流程需单独验证   |
 | `js/background.js`、`oauth_callback.js`、manifest  | 扩展入口与回调                                  |
 | `js/vendor/`、`vendor/`                            | 静态库、版本/来源/许可/哈希及保留项             |
@@ -56,6 +57,8 @@ Provider 路由依赖原有前缀：netease `ne`、qq `qq`、kugou `kg`、kuwo `
 
 MediaService 保留 `.success(fn)`，相关网络入口补充 `.error(fn)`、`.cancel()`、`.promise`；搜索还支持 `.onProgress(fn)`。旧 provider 的 `{ success(fn, failure) }` 通过 `RequestTask.legacy` 包装。`bootstrap_track(track, success, failure, { signal })` 保留回调并接收取消信号。内部 `/search?...` 等 URL 是参数载体，不是本地业务服务器。
 
+`MediaService.getLyric(trackId, albumId, lyricUrl, translatedUrl, options)` 的第五参数可选；桌面默认读取有效替换，`{ original: true }` 绕过替换并调用原 provider，保持原四参数及 RequestTask 协议。歌词管理只请求用户选择的候选，聚合默认搜索全部七个可见来源；仅接受有效同步正文，候选与文件必须先预览再应用。Bilibili 的原 provider 返回空歌词，不能据搜索结果宣称歌词可用。
+
 推荐歌单同样返回 RequestTask，不具备对应能力的来源返回 `UNSUPPORTED`。网易账号及创建、收藏、推荐歌单请求将任务的 AbortSignal 传给 Axios，校验业务码和必要结构；业务码 200 且 `account:null` 表示正常未登录，缺失结构返回 `INVALID_RESPONSE`。账号查询失败保留上一成功数据并显示状态未确认；确认游客、退出或切换账号会清理对应歌单。账号与歌单控制器在刷新、分类切换及销毁时取消任务，并用请求代次拒绝迟到响应。隔离登录窗口和手动登录完成确认保持不变。
 
 单平台歌曲与歌单搜索在 MediaService 对当前页按 `source:id` 稳定去重，保留首次记录和顺序；未知总数时用去重前的响应长度判断下一页，已知总数、页大小和显式 `hasMore` 保持原有语义。诊断只记录来源、阶段、固定接口名、错误码及数值型 HTTP/业务码、重复数量，不展开响应、账号、凭据或回跳 URL。
@@ -78,11 +81,19 @@ MediaService 保留 `.success(fn)`，相关网络入口补充 `.error(fn)`、`.c
 
 队列按 ID 去重，批量入队只发一次队列快照和必要 LOAD；清空/删除当前项会取消解析并卸载 Howler。快照去掉 howl，不能持久化实例。`l1Player` 音量是 0～100，核心是 0～1；UI 播放模式 0/1/2 对应 all/shuffle/one。
 
+桌面本地信息编辑经 `localmusic.update_track` 更新本地库、自建歌单和持久队列，再调用 `l1Player.updateTrackMetadata` 更新核心；只允许显示字段，保持 ID、来源、音频实例、播放位置与状态。编辑歌名去除首尾空白后不能为空，歌手/专辑可为空并同步派生 ID；本地歌手/专辑名包含下划线及查询特殊字符时仍按完整值查找。新本地导入跳过既有 ID，不批量重命名旧记录。
+
 桌面音量均衡默认关闭，使用 `loudness.js` 的 100 ms RMS 有效片段平均电平，`normalized_audio.js` 的完整资产准备与 AudioBuffer 播放。`standard` 最多 1 dB 声道联动限峰，`dynamic` 仅固定增益；共同目标仅在本次运行中下调。主音量在均衡后，音量／静音不能改变测量和均衡增益。`BG_PLAYER:LOUDNESS` 发布关闭、等待、分析中、生效、未均衡或失败状态；临时读取失败重试一次后暂停，明确不可处理才回退。分析、播放实例和测量缓存不进入曲目快照；代次／曲目／实际地址／模式使迟到结果失效。术语见 [GLOSSARY](GLOSSARY.md)。
 
 ## 5. 持久化与界面
 
 保留 playerlists、favoriteplayerlists、各歌单 ID、`lmplaylist_reserve`、`current-playing`、`player-settings`、theme/language/openSidebar、enable_*、auto_choose_source_list 和 float_window_setting 等键。损坏 JSON 返回空值供调用方兜底，不清空原存储；恢复队列过滤无效项。本地 ID 仍为 `lmtrack_` 加原路径，文件 URL 由桌面层编码。
+
+桌面歌词替换使用独立键 `lyric-override:${trackId}`，每首只存当前 `{ lyric, tlyric, offsetMs }`，原歌词可只存 `{ offsetMs }`，旧记录缺少偏移按 0 读取。同 ID 跨歌单共享，同名不同 ID 独立；损坏记录回退原 provider，不删除其他数据。现有 JSON/Gist 遍历自然包含新键，原曲目 lyrics 不改写。无有效独立译文时明确写 `tlyric: ''`。应用一次写入内容及零偏移；恢复先获取原 provider，成功后删除替换和偏移，失败提供重试并保留旧结果。写入失败不发布成功事件，保留旧版本。
+
+`Lyrics.parse` 使用毫秒时间线、translationFlag 和排序后的 lineNumber；允许 BOM、LF/CRLF、元数据、空行、无小数或 1～3 位小数时间戳及一行多时间戳。手动文件额外严格校验正文并报告错误行；空同步正文不能应用。`getOffset/setOffset` 使用整数毫秒，步长 300、范围 ±60000；PlayController 以播放毫秒 ≥ 时间戳＋偏移选行，原文/译文及悬浮窗同步，不改写 LRC 或音频位置。偏移保存后发布 `lyrics:offset-changed(trackId)`，暂停时立即刷新当前帧，不请求歌词。单份临时已加载歌词快照用于当前歌词可用性检查，不进入备份。
+
+`trackManager` 位于布局分支之上，固定目标快照，包含导入、恢复及可展开的时间对齐；遮罩只有在其上按下、松开且未拖动才关闭。独立 `lyricSearchPage` 接入两套导航的 tag 7，返回恢复入口和滚动位置；现代布局的管理入口放在现有播放操作栏。歌曲条目操作使用现有 icon 样式，仅行悬停显示。`LyricSearchSession` 在主题分支外保留目标、各平台页码及已完成搜索缓存；输入防抖 500ms，回车立即搜索，平台切换只筛选缓存，分页补齐未缓存页，各来源错误独立重试。候选只预览，明确应用后仍留在页面。搜索/预览/同步正文检查各有请求代次，关闭、离开及主题销毁取消在途请求，回调与 `$evalAsync` 内均复核。内容保存后发布 `lyrics:changed(trackId)`，PlayController 取消旧请求并强制刷新当前 ID，原文/译文始终成对转发。
 
 `loudness-settings` 独立保存 `{ enabled, mode }`，避免旧控制器保存 `player-settings` 时覆盖均衡设置。RMS 摘要最多 128 个，仅在本次页面运行中保留；解码缓冲仅保留当前资产。两套布局使用同一个 `loudness-control` 指令，按钮在 `volume-wheel` 容器之外；主题重建从核心获取真实状态，销毁时移除状态、键盘、外部点击和语言订阅。浏览器扩展保持默认 Howler 行为，此次桌面专用桥不暴露给扩展。
 

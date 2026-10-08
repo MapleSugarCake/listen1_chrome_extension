@@ -55,6 +55,14 @@
    * @type {Object}
    */
   const l1Player = {
+    requestFrameUpdate() {
+      getPlayerAsync(mode, (player) => player.sendFrameUpdate());
+    },
+    updateTrackMetadata(trackId, metadata) {
+      getPlayerAsync(mode, (player) =>
+        player.updateTrackMetadata(trackId, metadata)
+      );
+    },
     setLoudness(settings) {
       getPlayerAsync(mode, (player) => player.setLoudness(settings));
     },

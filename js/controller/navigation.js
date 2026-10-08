@@ -12,6 +12,7 @@ angular.module('listenone').controller('NavigationController', [
   '$scope',
   '$timeout',
   '$rootScope',
+  'LyricSearchSession',
   /**
    * 初始化 NavigationController 控制器，绑定模板使用的作用域状态和操作；在作用域销毁时执行已登记的清理处理。
    * @param $scope 当前控制器作用域。
@@ -19,7 +20,7 @@ angular.module('listenone').controller('NavigationController', [
    * @param $rootScope 应用根作用域；使用 page_title、$broadcast 字段。
    * @returns {void} 无返回值。
    */
-  ($scope, $timeout, $rootScope) => {
+  ($scope, $timeout, $rootScope, lyricSearch) => {
     $rootScope.page_title = { title: 'Listen 1', artist: '', status: '' };
     $scope.window_url_stack = [];
     $scope.window_poped_url_stack = [];
@@ -29,6 +30,11 @@ angular.module('listenone').controller('NavigationController', [
     $scope.tag_params = {};
 
     $scope.songs = [];
+    $scope.$on('track:metadata', (event, trackId, metadata) => {
+      $scope.songs.forEach((track) => {
+        if (track.id === trackId) Object.assign(track, metadata);
+      });
+    });
     $scope.current_list_id = -1;
 
     $scope.dialog_song = '';
@@ -55,6 +61,62 @@ angular.module('listenone').controller('NavigationController', [
       windowRequest?.cancel();
       windowRequest = null;
     }
+    // Keep the source view intact while a lyric session temporarily occupies
+    // the browser. The session survives layout destruction during theme changes.
+    const lyricOriginFields = [
+      'current_tag',
+      'is_window_hidden',
+      'window_type',
+      'tag_params',
+      'window_url_stack',
+      'window_poped_url_stack',
+      'songs',
+      'list_id',
+      'current_list_id',
+      'cover_img_url',
+      'playlist_title',
+      'playlist_source_url',
+      'is_mine',
+      'is_local',
+      'is_favorite',
+    ];
+    $scope.$on('lyric-search:open', () => {
+      if ($scope.current_tag !== 7) {
+        lyricSearch.origin = {
+          fields: Object.fromEntries(
+            lyricOriginFields.map((key) => [key, $scope[key]])
+          ),
+          scroll: document.querySelector('.browser')?.scrollTop || 0,
+        };
+      }
+      cancelWindowRequest();
+      $scope.current_tag = 7;
+      $scope.is_window_hidden = 1;
+      $scope.window_type = 'list';
+      $timeout(() => {
+        const browser = document.querySelector('.browser');
+        if (browser) browser.scrollTop = 0;
+      });
+    });
+    $scope.$on('lyric-search:back', () => {
+      const { origin } = lyricSearch;
+      if ($scope.current_tag !== 7 || !origin) return;
+      Object.assign($scope, origin.fields);
+      lyricSearch.leave();
+      $timeout(() => {
+        const browser = document.querySelector('.browser');
+        if (browser) browser.scrollTop = origin.scroll;
+      });
+    });
+    if (lyricSearch.active) $scope.current_tag = 7;
+    $scope.$watchGroup(['current_tag', 'is_window_hidden'], () => {
+      if (
+        lyricSearch.active &&
+        ($scope.current_tag !== 7 || $scope.is_window_hidden !== 1)
+      )
+        lyricSearch.leave();
+    });
+
     /**
      * 忽略取消错误，对真正的歌单加载失败显示通知。
      * @param error 被捕获或传入的异常；使用 code 字段。
@@ -306,6 +368,10 @@ angular.module('listenone').controller('NavigationController', [
      * @returns {void} 无返回值。
      */
     $scope.popWindow = () => {
+      if ($scope.current_tag === 7 && lyricSearch.active) {
+        $rootScope.$broadcast('lyric-search:back');
+        return;
+      }
       if ($scope.window_url_stack.length === 0) {
         return;
       }

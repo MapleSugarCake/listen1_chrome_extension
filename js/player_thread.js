@@ -1324,9 +1324,34 @@
     }
 
     /**
+     * 更新本地曲目元数据并发布队列及当前歌曲状态，保留音频实例与位置。
+     * @param trackId 本地曲目 ID。
+     * @param metadata 已验证的显示信息。
+     * @returns {void} 无返回值。
+     */
+    updateTrackMetadata(trackId, metadata) {
+      if (typeof trackId !== 'string' || !trackId.startsWith('lmtrack_'))
+        return;
+      const fields = {};
+      ['title', 'artist', 'album', 'artist_id', 'album_id'].forEach((key) => {
+        if (typeof metadata[key] === 'string') fields[key] = metadata[key];
+      });
+      let changed = false;
+      this.playlist.forEach((track) => {
+        if (track.id === trackId) {
+          Object.assign(track, fields);
+          changed = true;
+        }
+      });
+      if (changed) {
+        this.sendPlaylistEvent();
+        if (this.currentAudio?.id === trackId) this.sendLoadEvent();
+      }
+    }
+
+    /**
      * 向页面推送当前秒数、时长和进度比例，并更新媒体会话位置。
-     * 无参数。
-     * @returns {Promise<void>} 异步完成后无返回值；拒绝由调用链处理。
+     * @returns {Promise<void>} 异步完成后无返回值。
      */
     async sendFrameUpdate() {
       const data = {

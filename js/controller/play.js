@@ -8,7 +8,6 @@
  * - formatSecond：把秒数格式化为分钟和两位秒数的页面文字。
  */
 /* eslint-disable no-param-reassign */
-/* eslint-disable no-shadow */
 
 /* global angular notyf i18next MediaService l1Player hotkeys GithubClient isElectron getLocalStorageValue getPlayer getPlayerAsync addPlayerListener smoothScrollTo lastfm */
 
@@ -107,6 +106,9 @@ angular.module('listenone').controller('PlayController', [
     $scope.lyricLineNumber = -1;
     $scope.lastTrackId = null;
     let lyricRequest = null;
+    let lyricGeneration = 0;
+    let lyricDisposed = false;
+    let lastFloatingLyric = null;
     $scope.$on(
       '$destroy',
       /**
@@ -115,6 +117,8 @@ angular.module('listenone').controller('PlayController', [
        * @returns {void} 无返回值。
        */
       () => {
+        lyricDisposed = true;
+        lyricGeneration += 1;
         if (lyricRequest) lyricRequest.cancel();
       }
     );
@@ -585,145 +589,124 @@ angular.module('listenone').controller('PlayController', [
     );
 
     /**
-     * 把原文与译文 LRC 合并为按毫秒排序的时间线，保留翻译标记并过滤元数据；同时间戳先排原文。
-     * @param lyric LRC 原文文本，含方括号时间戳。
-     * @param tlyric LRC 翻译文本，可为空。
-     * @returns {Array<Object>} 合并排序后的歌词行；seconds 字段实际保存毫秒，translationFlag 标记译文。
+     * 按播放位置更新原文、译文高亮及悬浮窗口，暂停时也可强制刷新。
+     * @param position 当前播放秒数。
+     * @param force 是否立即发送当前原文与译文。
+     * @returns {void} 无返回值。
      */
-    function parseLyric(lyric, tlyric) {
-      // 把原文和翻译合并为同一条有序时间线。
-      // 译文保留 translationFlag，
-      // 页面与悬浮窗口可分别决定是否显示。
-      const lines = lyric.split('\n');
-      let result = [];
-      const timeResult = [];
-
-      if (typeof tlyric !== 'string') {
-        tlyric = '';
-      }
-      const linesTrans = tlyric.split('\n');
-      const resultTrans = [];
-      const timeResultTrans = [];
-      if (tlyric === '') {
-        linesTrans.splice(0);
-      }
-
-      /**
-       * 在字符串右侧补齐指定字符，供歌词小数秒位数规范化。
-       * @param str 待转换的字符串。
-       * @param length 目标长度或队列总长度。
-       * @param padChar 用于补齐长度的字符。
-       * @returns {*} newstr。
-       */
-      function rightPadding(str, length, padChar) {
-        const newstr = str + new Array(length - str.length + 1).join(padChar);
-        return newstr;
-      }
-
-      /**
-       * 创建单行歌词解析回调，将时间标签和文本写入指定结果数组并标记原文或译文。
-       * @param result 前一步处理结果；使用 push 字段。
-       * @param timeResult 收集带时间戳歌词的数组；使用 push 字段。
-       * @param translationFlag 是否为翻译歌词。
-       * @returns {Function} 逐行解析 LRC 并写入外层结果数组的回调。
-       */
-      const process =
-        (result, timeResult, translationFlag) =>
-        /**
-         * 进入此回调后，更新 lyricObject.seconds、[lyricObject.content]、timeRegResult，执行 tagReg.exec。
-         * @param line 当前待解析的单行 LRC 文本。
-         * @param index 当前条目的零起点索引。
-         * @returns {void} 无返回值。
-         */
-        (line, index) => {
-          const tagReg = /\[\D*:([^\]]+)\]/g;
-          const tagRegResult = tagReg.exec(line);
-          if (tagRegResult) {
-            const lyricObject = {};
-            lyricObject.seconds = 0;
-            [lyricObject.content] = tagRegResult;
-            result.push(lyricObject);
-            return;
-          }
-
-          const timeReg = /\[(\d{2,})\:(\d{2})(?:\.(\d{1,3}))?\]/g; // eslint-disable-line no-useless-escape
-
-          let timeRegResult;
-          // eslint-disable-next-line no-cond-assign
-          while ((timeRegResult = timeReg.exec(line)) !== null) {
-            const htmlUnescapes = {
-              '&amp;': '&',
-              '&lt;': '<',
-              '&gt;': '>',
-              '&quot;': '"',
-              '&#39;': "'",
-              '&apos;': "'",
-            };
-            timeResult.push({
-              content: line
-                .replace(/\[(\d{2,}):(\d{2})(?:\.(\d{1,3}))?\]/g, '')
-                .replace(
-                  /&(?:amp|lt|gt|quot|#39|apos);/g,
-                  /**
-                   * 进入此回调后，取得 htmlUnescapes[match]。
-                   * @param match 正则表达式匹配到的完整片段。
-                   * @returns {*} htmlUnescapes[match]。
-                   */
-                  (match) => htmlUnescapes[match]
-                ),
-              seconds:
-                parseInt(timeRegResult[1], 10) * 60 * 1000 + // 分钟。
-                parseInt(timeRegResult[2], 10) * 1000 + // 秒。
-                (timeRegResult[3]
-                  ? parseInt(rightPadding(timeRegResult[3], 3, '0'), 10)
-                  : 0), // 小数秒换算得到的毫秒。
-              translationFlag,
-              index,
-            });
-          }
-        };
-
-      lines.forEach(process(result, timeResult, false));
-      linesTrans.forEach(process(resultTrans, timeResultTrans, true));
-
-      // 按时间和译文标记排序。
-      result = timeResult.concat(timeResultTrans).sort(
-        /**
-         * 比较排序 timeResult.concat() 中的条目，取得 -1。
-         * @param a 来自 timeResult.concat() 的第一个待比较条目；使用 seconds、translationFlag、index 字段。
-         * @param b 来自 timeResult.concat() 的第二个待比较条目；使用 seconds、translationFlag、index 字段。
-         * @returns {number} -1；其他分支返回 1；其他分支返回 0。
-         */
-        (a, b) => {
-          const keyA = a.seconds;
-          const keyB = b.seconds;
-
-          // 比较两条歌词的时间及排列优先级。
-          if (keyA < keyB) return -1;
-          if (keyA > keyB) return 1;
-          if (a.translationFlag !== b.translationFlag) {
-            if (a.translationFlag === false) {
-              return -1;
-            }
-            return 1;
-          }
-          if (a.index < b.index) return -1;
-          if (a.index > b.index) return 1;
-          return 0;
+    function renderCurrentLyric(position, force = false) {
+      const offsetMs =
+        isElectron() && $scope.currentPlaying?.id
+          ? window.Lyrics.getOffset($scope.currentPlaying.id)
+          : 0;
+      let original = null;
+      let translation = null;
+      $scope.lyricArray.forEach((line) => {
+        if (Number(position) * 1000 >= line.seconds + offsetMs) {
+          if (line.translationFlag) translation = line;
+          else original = line;
         }
-      );
-      // 排除歌名、歌手等元数据标签，
-      // 这些信息可能被来源混入歌词时间线。
-      // 停用代码，保留供历史对照：
-      // result.push.apply(result, timeResult);
-      // result = timeResult; // 已在上方完成赋值
-
-      for (let i = 0; i < result.length; i += 1) {
-        result[i].lineNumber = i;
+      });
+      const changed = $scope.lyricLineNumber !== (original?.lineNumber ?? -1);
+      $scope.lyricLineNumber = original?.lineNumber ?? -1;
+      $scope.lyricLineNumberTrans = translation?.lineNumber ?? -1;
+      if ((changed || force) && original) {
+        const scroller = document.querySelector(
+          '.playsong-detail .detail-songinfo .lyric'
+        );
+        const element = scroller?.querySelector(
+          `[data-line="${original.lineNumber}"]`
+        );
+        if (element) {
+          const height = useModernTheme()
+            ? document.body.offsetHeight - 100
+            : scroller.offsetHeight;
+          smoothScrollTo(scroller, element.offsetTop - height / 2 + 30, 500);
+        }
       }
-
-      return result;
+      if (isElectron()) {
+        const payload = {
+          lyric: original
+            ? original.content
+            : $scope.currentPlaying?.title || '',
+          tlyric:
+            original &&
+            translation &&
+            $scope.enableLyricFloatingWindowTranslation
+              ? translation.content
+              : '',
+        };
+        const signature = JSON.stringify([$scope.currentPlaying?.id, payload]);
+        if (force || signature !== lastFloatingLyric) {
+          lastFloatingLyric = signature;
+          window.listen1Desktop.setLyric(payload);
+        }
+      }
     }
+
+    function loadLyrics(track) {
+      lyricGeneration += 1;
+      const generation = lyricGeneration;
+      if (lyricRequest) lyricRequest.cancel();
+      $scope.lastTrackId = track.id;
+      $scope.lyricArray = [];
+      $scope.lyricLineNumber = -1;
+      $scope.lyricLineNumberTrans = -1;
+      $scope.lyricError = '';
+      renderCurrentLyric(0, true);
+      const current = () =>
+        !lyricDisposed &&
+        generation === lyricGeneration &&
+        $scope.currentPlaying?.id === track.id;
+      lyricRequest = MediaService.getLyric(
+        track.id,
+        track.album_id,
+        track.lyric_url,
+        track.tlyric_url
+      );
+      lyricRequest
+        .success((data) => {
+          if (!current()) return;
+          $scope.$evalAsync(() => {
+            if (!current()) return;
+            window.Lyrics.remember(track.id, data);
+            $scope.lyricArray = window.Lyrics.parse(data?.lyric, data?.tlyric);
+            const position =
+              l1Player.status.playing?.id === track.id
+                ? l1Player.status.playing.pos
+                : 0;
+            renderCurrentLyric(position || 0, true);
+            l1Player.requestFrameUpdate();
+          });
+        })
+        .error((error) => {
+          if (!current() || error.code === 'CANCELLED') return;
+          $scope.$evalAsync(() => {
+            if (!current()) return;
+            $scope.lyricError = i18next.t(`_ERROR_${error.code}`, {
+              defaultValue: i18next.t('_ERROR_UNKNOWN'),
+            });
+          });
+        });
+    }
+
+    $scope.retryLyrics = () => {
+      if ($scope.currentPlaying?.id) loadLyrics($scope.currentPlaying);
+    };
+    $scope.$on('lyrics:changed', (event, trackId) => {
+      window.Lyrics.forget(trackId);
+      if (!lyricDisposed && $scope.currentPlaying?.id === trackId)
+        loadLyrics($scope.currentPlaying);
+    });
+    $scope.$on('lyrics:offset-changed', (event, trackId) => {
+      if (lyricDisposed || $scope.currentPlaying?.id !== trackId) return;
+      $scope.$evalAsync(() => {
+        if (lyricDisposed || $scope.currentPlaying?.id !== trackId) return;
+        renderCurrentLyric(l1Player.status.playing?.pos || 0, true);
+        l1Player.requestFrameUpdate();
+      });
+    });
+
     const mode =
       isElectron() || getLocalStorageValue('enable_stop_when_close', true)
         ? 'front'
@@ -792,72 +775,13 @@ angular.module('listenone').controller('PlayController', [
             }
 
             case 'FRAME_UPDATE': {
-              // 播放位置事件。
-              // 更新当前歌词位置。
-              if (!l1Player.status.playing.id) break;
-              const currentSeconds = msg.data.pos;
-              let lastObject = null;
-              let lastObjectTrans = null;
-              $scope.lyricArray.forEach(
-                /**
-                 * 逐项处理 $scope.lyricArray 中的条目，更新 lastObject、lastObjectTrans。
-                 * @param lyric 来自 $scope.lyricArray 的当前条目；使用 seconds、translationFlag 字段。
-                 * @returns {void} 无返回值。
-                 */
-                (lyric) => {
-                  if (currentSeconds >= lyric.seconds / 1000) {
-                    if (lyric.translationFlag !== true) {
-                      lastObject = lyric;
-                    } else {
-                      lastObjectTrans = lyric;
-                    }
-                  }
-                }
-              );
+              // Reject frames from a track that has already been replaced.
               if (
-                lastObject &&
-                lastObject.lineNumber !== $scope.lyricLineNumber
-              ) {
-                const lineElement = document.querySelector(
-                  `.playsong-detail .detail-songinfo .lyric p[data-line="${lastObject.lineNumber}"]`
-                );
-
-                let windowHeight = document.querySelector(
-                  '.playsong-detail .detail-songinfo .lyric'
-                ).offsetHeight;
-                if (useModernTheme()) {
-                  windowHeight =
-                    document.querySelector('body').offsetHeight - 100;
-                }
-
-                const adjustOffset = 30;
-                const offset =
-                  lineElement.offsetTop - windowHeight / 2 + adjustOffset;
-                smoothScrollTo(document.querySelector('.lyric'), offset, 500);
-                $scope.lyricLineNumber = lastObject.lineNumber;
-                if (
-                  lastObjectTrans &&
-                  lastObjectTrans.lineNumber !== $scope.lyricLineNumberTrans
-                ) {
-                  $scope.lyricLineNumberTrans = lastObjectTrans.lineNumber;
-                }
-                if (isElectron()) {
-                  const currentLyric =
-                    $scope.lyricArray[lastObject.lineNumber].content;
-                  let currentLyricTrans = '';
-                  if (
-                    $scope.enableLyricFloatingWindowTranslation === true &&
-                    lastObjectTrans
-                  ) {
-                    currentLyricTrans =
-                      $scope.lyricArray[lastObjectTrans.lineNumber].content;
-                  }
-                  window.listen1Desktop.setLyric({
-                    lyric: currentLyric,
-                    tlyric: currentLyricTrans,
-                  });
-                }
-              }
+                !$scope.currentPlaying?.id ||
+                msg.data.id !== $scope.currentPlaying.id
+              )
+                break;
+              renderCurrentLyric(msg.data.pos);
 
               // 曲目时长事件。
               (
@@ -940,82 +864,40 @@ angular.module('listenone').controller('PlayController', [
                 }
               }
 
-              if (msg.data.currentPlaying.id === undefined) {
+              const track = msg.data.currentPlaying;
+              if (track.id === undefined) {
+                lyricGeneration += 1;
                 if (lyricRequest) lyricRequest.cancel();
                 $scope.lastTrackId = null;
                 $scope.lyricArray = [];
-                if (isElectron()) window.listen1Desktop.setLyric('');
+                $scope.lyricError = '';
+                renderCurrentLyric(0, true);
                 break;
               }
-              $scope.currentPlaying.platformText = i18next.t(
-                $scope.currentPlaying.platform
-              );
-              $scope.myProgress = 0;
-              if ($scope.lastTrackId === msg.data.currentPlaying.id) {
-                break;
-              }
-              const current = localStorage.getObject('player-settings') || {};
-              current.nowplaying_track_id = msg.data.currentPlaying.id;
-              localStorage.setObject('player-settings', current);
-              // 更新歌词内容。
-              $scope.lyricArray = [];
-              $scope.lyricLineNumber = -1;
-              $scope.lyricLineNumberTrans = -1;
-              smoothScrollTo(document.querySelector('.lyric'), 0, 300);
-              const track = msg.data.currentPlaying;
+              $scope.currentPlaying.platformText = i18next.t(track.platform);
               $rootScope.page_title = {
                 title: track.title,
                 artist: track.artist,
-                status: 'playing',
+                status: $scope.isPlaying ? 'playing' : 'paused',
               };
-              if (lastfm.isAuthorized()) {
-                lastfm.sendNowPlaying(
-                  track.title,
-                  track.artist,
-                  /**
-                   * 保留的空回调，此处无需继续处理或改变状态。
-                   * 无参数。
-                   * @returns {void} 无返回值。
-                   */
-                  () => {}
-                );
-              }
-              if (lyricRequest) lyricRequest.cancel();
-              lyricRequest = MediaService.getLyric(
-                msg.data.currentPlaying.id,
-                msg.data.currentPlaying.album_id,
-                track.lyric_url,
-                track.tlyric_url
-              ).success(
-                /**
-                 * 进入此回调后，执行 $scope.$evalAsync。
-                 * @param res 异步响应或消息应答函数，按调用位置使用。
-                 * @returns {void} 无返回值。
-                 */
-                (res) => {
-                  if ($scope.lastTrackId !== track.id) return;
-                  const { lyric, tlyric } = res;
-                  if (!lyric) {
-                    return;
-                  }
-                  $scope.$evalAsync(
-                    /**
-                     * 进入此回调后，更新 $scope.lyricArray，执行 parseLyric。
-                     * 无参数。
-                     * @returns {void} 无返回值。
-                     */
-                    () => {
-                      if ($scope.lastTrackId === track.id)
-                        $scope.lyricArray = parseLyric(lyric, tlyric);
-                    }
-                  );
-                }
+              $rootScope.document_title =
+                ($scope.isPlaying ? '▶ ' : '❚❚ ') +
+                track.title +
+                (track.artist ? ` - ${track.artist}` : '');
+              if (isElectron()) window.listen1Desktop.setTrack(track);
+              // Metadata-only LOAD events must not restart lyrics or progress.
+              if ($scope.lastTrackId === track.id) break;
+              $scope.myProgress = 0;
+              const current = localStorage.getObject('player-settings') || {};
+              current.nowplaying_track_id = track.id;
+              localStorage.setObject('player-settings', current);
+              const scroller = document.querySelector(
+                '.playsong-detail .detail-songinfo .lyric'
               );
-              $scope.lastTrackId = msg.data.currentPlaying.id;
-              if (isElectron()) {
-                window.listen1Desktop.setLyric(track.title);
-                window.listen1Desktop.setTrack(track);
-              }
+              if (scroller) smoothScrollTo(scroller, 0, 300);
+              if (lastfm.isAuthorized())
+                lastfm.sendNowPlaying(track.title, track.artist, () => {});
+              loadLyrics(track);
               break;
             }
 
@@ -1282,6 +1164,8 @@ angular.module('listenone').controller('PlayController', [
         'enable_lyric_floating_window_translation',
         $scope.enableLyricFloatingWindowTranslation
       );
+      renderCurrentLyric(l1Player.status.playing?.pos || 0, true);
+      l1Player.requestFrameUpdate();
     };
 
     if (isElectron()) {

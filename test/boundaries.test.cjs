@@ -131,13 +131,25 @@ test('playlist navigation ignores delayed results after another selection or clo
   let controller;
   const pending = [];
   const messages = [];
+  const handlers = new Map();
+  const browser = { scrollTop: 0 };
+  const lyricSearch = {
+    active: false,
+    origin: null,
+    leave() {
+      this.active = false;
+    },
+  };
   const scope = {
     /**
      * 测试替身：接受此处调用但不执行操作。
      * 无参数。
      * @returns {void} 无返回值。
      */
-    $on() {},
+    $on(name, callback) {
+      handlers.set(name, callback);
+    },
+    $watchGroup() {},
     /**
      * 测试替身：调用 fn 完成通知，供用例观察调用与状态。
      * @param fn 接收处理结果的回调函数。
@@ -173,6 +185,7 @@ test('playlist navigation ignores delayed results after another selection or clo
        * @returns {Array} 按声明顺序组成的数组。
        */
       getElementsByClassName: () => [{ scrollTop: 0 }],
+      querySelector: () => browser,
     },
     localStorage: {
       /**
@@ -264,7 +277,8 @@ test('playlist navigation ignores delayed results after another selection or clo
      * @returns {*} fn 回调的直接返回值。
      */
     (fn) => fn(),
-    {}
+    { $broadcast: (name) => handlers.get(name)?.() },
+    lyricSearch
   );
   scope.showPlaylist('neplaylist_1');
   scope.showPlaylist('neplaylist_2');
@@ -287,6 +301,22 @@ test('playlist navigation ignores delayed results after another selection or clo
   pending[2].done(data('neplaylist_3'));
   assert.equal(scope.songs.length, 0);
   assert.equal(scope.is_window_hidden, 1);
+  scope.showPlaylist('neplaylist_4');
+  pending[3].done(data('neplaylist_4'));
+  browser.scrollTop = 140;
+  const previousUrl = scope.getCurrentUrl();
+  lyricSearch.active = true;
+  handlers.get('lyric-search:open')();
+  assert.equal(scope.current_tag, 7);
+  assert.equal(scope.is_window_hidden, 1);
+  assert.equal(browser.scrollTop, 0);
+  scope.popWindow();
+  assert.equal(lyricSearch.active, false);
+  assert.equal(scope.is_window_hidden, 0);
+  assert.equal(scope.getCurrentUrl(), previousUrl);
+  assert.equal(scope.list_id, 'neplaylist_4');
+  assert.equal(scope.songs[0].id, 'track-neplaylist_4');
+  assert.equal(browser.scrollTop, 140);
 });
 
 test('provider business failures are not reported as successful empty searches' /**

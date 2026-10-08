@@ -175,6 +175,43 @@ function playerHarness() {
   return { player: context.window.threadPlayer, events, requests };
 }
 
+test('editing current local metadata preserves paused audio, position, source and identity', () => {
+  const { player, events, requests } = playerHarness();
+  const track = {
+    id: 'lmtrack_C:/Music/a.wav',
+    title: 'Old',
+    source: 'localmusic',
+  };
+  player.setNewPlaylist([track, { id: 'netrack_1', title: 'Online' }]);
+  player.loadById(track.id);
+  const audio = { seek: () => 17, duration: () => 40, playing: () => false };
+  player.currentAudio.howl = audio;
+  const generation = player._generation;
+  events.length = 0;
+  player.updateTrackMetadata(track.id, {
+    title: 'Edited',
+    artist: '',
+    album: '',
+    source: 'qq',
+    id: 'qqtrack_wrong',
+    howl: null,
+  });
+  assert.equal(player.currentAudio.title, 'Edited');
+  assert.equal(player.currentAudio.id, track.id);
+  assert.equal(player.currentAudio.source, 'localmusic');
+  assert.equal(player.currentHowl, audio);
+  assert.equal(player.currentHowl.seek(), 17);
+  assert.equal(player.playing, false);
+  assert.equal(player._generation, generation);
+  assert.equal(requests.length, 0);
+  assert.deepEqual(
+    events.map((event) => event.type),
+    ['BG_PLAYER:PLAYLIST', 'BG_PLAYER:LOAD']
+  );
+  player.updateTrackMetadata('netrack_1', { title: 'Ignored' });
+  assert.equal(player.playlist[1].title, 'Online');
+});
+
 test('empty queue controls do not throw or resolve a nonexistent song' /**
  * 验证空队列的播放和切歌操作不会抛错或解析不存在的曲目；断言失败由测试运行器记录。
  * 无参数。
