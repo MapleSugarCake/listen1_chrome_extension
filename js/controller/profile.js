@@ -23,6 +23,7 @@ angular.module('listenone').controller('ProfileController', [
       defaultLang = localStorage.getObject('language');
     }
     $scope.lastestVersion = '';
+    $scope.currentVersion = isElectron() ? '2.35.1' : '2.33.0';
     $scope.theme = '';
     $scope.proxyModes = [
       { name: 'system', displayId: '_PROXY_SYSTEM' },
