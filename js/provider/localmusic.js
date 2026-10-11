@@ -212,6 +212,9 @@ class localmusic {
         fn({
           lyric,
           tlyric: '',
+          ...(track?.lyric_provenance
+            ? { provenance: track.lyric_provenance }
+            : {}),
         }),
     };
   }
@@ -257,11 +260,37 @@ class localmusic {
       artist_id: `lmartist_${input.artist.trim()}`,
       album_id: `lmalbum_${input.album.trim()}`,
     };
+    if (input.cover_asset_id !== undefined) {
+      if (
+        typeof input.cover_asset_id !== 'string' ||
+        !/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/.test(
+          input.cover_asset_id
+        ) ||
+        typeof input.cover_file_name !== 'string' ||
+        input.cover_file_name.length > 255 ||
+        /[\\/]/.test(input.cover_file_name) ||
+        [...input.cover_file_name].some((char) => char.charCodeAt(0) < 32) ||
+        typeof input.img_url !== 'string' ||
+        !input.img_url.startsWith('file:')
+      )
+        throw Object.assign(new Error('Invalid cover'), {
+          code: 'COVER_INVALID',
+        });
+      Object.assign(fields, {
+        cover_asset_id: input.cover_asset_id,
+        cover_file_name: input.cover_file_name,
+        img_url: input.img_url,
+      });
+    }
     const ids = localStorage.getObject('playerlists');
+    const favorites = localStorage.getObject('favoriteplayerlists');
     const keys = new Set([
       'lmplaylist_reserve',
       'current-playing',
       ...(Array.isArray(ids) ? ids.filter((id) => typeof id === 'string') : []),
+      ...(Array.isArray(favorites)
+        ? favorites.filter((id) => typeof id === 'string')
+        : []),
     ]);
     const changes = [];
     keys.forEach((key) => {

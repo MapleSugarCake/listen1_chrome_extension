@@ -55,6 +55,94 @@ function harness() {
   };
 }
 
+test('lyric provenance follows replacements and restores independently of audio source', () => {
+  const { lyrics, localStorage } = harness();
+  const id = 'netrack_origin';
+  lyrics.rememberOrigin(id, { kind: 'platform', platform: 'netease' });
+  assert.equal(lyrics.getProvenance(id).platform, 'netease');
+  lyrics.saveOverride(id, {
+    lyric: '[00:01]file',
+    tlyric: '',
+    provenance: { kind: 'file', fileName: '真实歌词.lrc' },
+  });
+  lyrics.setOffset(id, -300);
+  assert.equal(lyrics.getProvenance(id).fileName, '真实歌词.lrc');
+  lyrics.saveOverride(id, {
+    lyric: '[00:01]search',
+    tlyric: '',
+    provenance: { kind: 'platform', platform: 'qq' },
+  });
+  assert.equal(lyrics.getOffset(id), 0);
+  lyrics.rememberOrigin(id, { kind: 'platform', platform: 'netease' });
+  assert.equal(lyrics.getProvenance(id).platform, 'qq');
+  lyrics.removeOverride(id);
+  assert.equal(lyrics.getProvenance(id).platform, 'netease');
+  localStorage.setObject('lyric-override:' + id, {
+    lyric: '[00:01]legacy',
+    tlyric: '',
+  });
+  assert.equal(lyrics.getProvenance(id), null);
+  assert.equal(
+    lyrics.provenance({ kind: 'file', fileName: '../guess.lrc' }).fileName,
+    undefined
+  );
+});
+
+test('cover fields synchronize every stored copy and failed writes roll back the old cover', () => {
+  const { local, localStorage } = harness();
+  const id = 'lmtrack_C:/old.wav';
+  const old = {
+    id,
+    title: 'old',
+    artist: '',
+    album: '',
+    img_url: 'old.png',
+    howl: 'unserialized runtime only',
+  };
+  localStorage.setObject('playerlists', ['myplaylist_copy']);
+  localStorage.setObject('favoriteplayerlists', ['myplaylist_favorite']);
+  for (const key of [
+    'lmplaylist_reserve',
+    'myplaylist_copy',
+    'myplaylist_favorite',
+  ])
+    localStorage.setObject(key, { tracks: [{ ...old }] });
+  localStorage.setObject('current-playing', [{ ...old }]);
+  const change = {
+    title: 'edited',
+    artist: '',
+    album: '',
+    cover_asset_id: '12345678-1234-1234-1234-123456789abc',
+    cover_file_name: '实际图片.webp',
+    img_url: 'file:///C:/profile/covers/image.webp',
+  };
+  const before = new Map(localStorage.values);
+  const write = localStorage.setItem.bind(localStorage);
+  localStorage.setItem = (key, value) => {
+    if (key === 'myplaylist_copy' && value.includes('edited'))
+      throw Error('quota');
+    write(key, value);
+  };
+  assert.throws(() => local.update_track(id, change), {
+    code: 'LYRIC_STORAGE',
+  });
+  assert.deepEqual(localStorage.values, before);
+  localStorage.setItem = write;
+  local.update_track(id, change);
+  for (const key of [
+    'lmplaylist_reserve',
+    'myplaylist_copy',
+    'myplaylist_favorite',
+    'current-playing',
+  ]) {
+    const value = localStorage.getObject(key);
+    const track = (value.tracks || value)[0];
+    assert.equal(track.id, id);
+    assert.equal(track.cover_file_name, change.cover_file_name);
+    assert.equal(track.cover_asset_id, change.cover_asset_id);
+  }
+});
+
 test('LRC accepts BOM, metadata, blank lines and multiple timestamps; timeline retains translations', () => {
   const { lyrics } = harness();
   const lyric =

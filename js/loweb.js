@@ -632,7 +632,7 @@ const MediaService = {
       lyric_url,
       tlyric_url,
     })}`;
-    return RequestTask.legacy(
+    const original = RequestTask.legacy(
       /**
        * 进入此回调后，执行 provider.lyric。
        * 无参数。
@@ -643,6 +643,26 @@ const MediaService = {
         source: getProviderNameByItemId(track_id),
         stage: 'lyric',
       }
+    );
+    return RequestTask.create(
+      ({ resolve, reject, signal, onCleanup }) => {
+        onCleanup(() => original.cancel());
+        original.promise.then((data) => {
+          if (signal.aborted) return;
+          const value = { ...data };
+          if (value.lyric) {
+            const source = getProviderNameByItemId(track_id);
+            value.provenance =
+              window.Lyrics?.provenance(value.provenance) ||
+              (source !== 'localmusic'
+                ? { kind: 'platform', platform: source }
+                : undefined);
+            window.Lyrics?.rememberOrigin(track_id, value.provenance);
+          } else window.Lyrics?.rememberOrigin(track_id, null);
+          resolve(value);
+        }, reject);
+      },
+      { source: getProviderNameByItemId(track_id), stage: 'lyric' }
     );
   },
 

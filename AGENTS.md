@@ -17,20 +17,21 @@ controller → l1Player → bridge → threadPlayer / Howler
 
 ## 2. 目录与依赖
 
-| 路径                                               | 职责                                            |
-| -------------------------------------------------- | ----------------------------------------------- |
-| `listen1.html`、`js/app.js`                        | 两套模板、全局指令、翻译和页面更新              |
-| `js/controller/`                                   | 搜索、歌单、导航/备份、播放、认证、设置         |
-| `js/request.js`、`js/loweb.js`                     | 请求任务与 MediaService 门面                    |
-| `js/provider/`                                     | 平台和本地音乐数据转换                          |
-| `js/l1_player.js`、`bridge.js`、`player_thread.js` | 播放命令、环境桥接、队列和 Howler 状态          |
-| `js/myplaylist.js`、`lowebutil.js`                 | 歌单存储、Cookie 适配、JSON 容错                |
-| `js/lyrics.js`、`track_management.js`              | 共享 LRC/替换存储、桌面歌曲信息及歌词管理指令   |
-| `js/github.js`、`lastfm.js`                        | OAuth/Gist 和 Last.fm，真实账号流程需单独验证   |
-| `js/background.js`、`oauth_callback.js`、manifest  | 扩展入口与回调                                  |
-| `js/vendor/`、`vendor/`                            | 静态库、版本/来源/许可/哈希及保留项             |
-| `css/`、`images/`、`fonts/`、`i18n/`               | 样式、图片字体、六份翻译                        |
-| `scripts/`、`test/`、`config/`                     | vendor 生成、行为测试、迁移后保留的 ESLint 规则 |
+| 路径                                               | 职责                                                     |
+| -------------------------------------------------- | -------------------------------------------------------- |
+| `listen1.html`、`js/app.js`                        | 两套模板、全局指令、翻译和页面更新                       |
+| `js/controller/`                                   | 搜索、歌单、导航/备份、播放、认证、设置                  |
+| `js/request.js`、`js/loweb.js`                     | 请求任务与 MediaService 门面                             |
+| `js/provider/`                                     | 平台和本地音乐数据转换                                   |
+| `js/l1_player.js`、`bridge.js`、`player_thread.js` | 播放命令、环境桥接、队列和 Howler 状态                   |
+| `js/myplaylist.js`、`lowebutil.js`                 | 歌单存储、Cookie 适配、JSON 容错                         |
+| `js/lyrics.js`、`track_management.js`              | 共享 LRC/替换存储、桌面歌曲信息及歌词管理指令            |
+| `js/track_details.js`、`css/visual-polish.css`     | 桌面歌曲详情、封面恢复、短期音频信息缓存及跨主题视觉打磨 |
+| `js/github.js`、`lastfm.js`                        | OAuth/Gist 和 Last.fm，真实账号流程需单独验证            |
+| `js/background.js`、`oauth_callback.js`、manifest  | 扩展入口与回调                                           |
+| `js/vendor/`、`vendor/`                            | 静态库、版本/来源/许可/哈希及保留项                      |
+| `css/`、`images/`、`fonts/`、`i18n/`               | 样式、图片字体、六份翻译                                 |
+| `scripts/`、`test/`、`config/`                     | vendor 生成、行为测试、迁移后保留的 ESLint 规则          |
 
 本包依赖均位于 devDependencies，其中包含生成静态库所需的精确版本。正常启动不依赖 node_modules 或在线 CDN。`vendor:check` 比较实际文件、许可证、版本和哈希，定制 forge 单独保留并检验原始哈希；详见 [vendor 指南](vendor/README.md)。包元数据 `main: index.js` 不是实际启动入口。
 
@@ -83,6 +84,10 @@ MediaService 保留 `.success(fn)`，相关网络入口补充 `.error(fn)`、`.c
 
 桌面本地信息编辑经 `localmusic.update_track` 更新本地库、自建歌单和持久队列，再调用 `l1Player.updateTrackMetadata` 更新核心；只允许显示字段，保持 ID、来源、音频实例、播放位置与状态。编辑歌名去除首尾空白后不能为空，歌手/专辑可为空并同步派生 ID；本地歌手/专辑名包含下划线及查询特殊字符时仍按完整值查找。新本地导入跳过既有 ID，不批量重命名旧记录。
 
+显示字段白名单包括 `img_url`、`cover_asset_id` 和 `cover_file_name`。封面经桌面层选择及暂存，确认时先事务式更新本地库、自建/收藏歌单和 `current-playing`，失败回滚旧快照；提交后保留副本、同步核心及 `track:metadata`。`TrackPresentation` 按副本 UUID 恢复文件 URL，迟到解析复核 ID/副本身份，不写入原音频。旧记录缺少新增字段按原封面显示。
+
+`l1Player.getResolvedAudioSource(trackId)` 返回核心保存的实际已加载音源快照或未过期地址，不触发播放。`BG_PLAYER:AUDIO_SOURCE` 发布 `{ id, identity }`；实际来源变化使详情缓存失效。未加载歌曲的详情手动查询沿用 `MediaService.bootstrapTrack` 的换源规则，但不入队、不修改 Howler。信息缓存最多 128 项、TTL 五分钟且仅本次页面运行有效；按 ID、实际来源及音源身份绑定，不持久化媒体 URL。
+
 桌面音量均衡默认关闭，使用 `loudness.js` 的 100 ms RMS 有效片段平均电平，`normalized_audio.js` 的完整资产准备与 AudioBuffer 播放。`standard` 最多 1 dB 声道联动限峰，`dynamic` 仅固定增益；共同目标仅在本次运行中下调。主音量在均衡后，音量／静音不能改变测量和均衡增益。`BG_PLAYER:LOUDNESS` 发布关闭、等待、分析中、生效、未均衡或失败状态；临时读取失败重试一次后暂停，明确不可处理才回退。分析、播放实例和测量缓存不进入曲目快照；代次／曲目／实际地址／模式使迟到结果失效。术语见 [GLOSSARY](GLOSSARY.md)。
 
 ## 5. 持久化与界面
@@ -91,13 +96,19 @@ MediaService 保留 `.success(fn)`，相关网络入口补充 `.error(fn)`、`.c
 
 桌面歌词替换使用独立键 `lyric-override:${trackId}`，每首只存当前 `{ lyric, tlyric, offsetMs }`，原歌词可只存 `{ offsetMs }`，旧记录缺少偏移按 0 读取。同 ID 跨歌单共享，同名不同 ID 独立；损坏记录回退原 provider，不删除其他数据。现有 JSON/Gist 遍历自然包含新键，原曲目 lyrics 不改写。无有效独立译文时明确写 `tlyric: ''`。应用一次写入内容及零偏移；恢复先获取原 provider，成功后删除替换和偏移，失败提供重试并保留旧结果。写入失败不发布成功事件，保留旧版本。
 
+替换记录兼容可选 `provenance: { kind, fileName?, platform? }`。文件导入保存实际选择文件名，候选替换保存实际 provider 平台；`Lyrics` 验证来源字段并短期记住原 provider 来源。旧替换记录无来源时留空，内嵌/JSON 歌词无确切文件名时留空。恢复成功才删除替换来源，失败保留内容与来源；音频换源不能覆盖歌词平台。
+
 `Lyrics.parse` 使用毫秒时间线、translationFlag 和排序后的 lineNumber；允许 BOM、LF/CRLF、元数据、空行、无小数或 1～3 位小数时间戳及一行多时间戳。手动文件额外严格校验正文并报告错误行；空同步正文不能应用。`getOffset/setOffset` 使用整数毫秒，步长 300、范围 ±60000；PlayController 以播放毫秒 ≥ 时间戳＋偏移选行，原文/译文及悬浮窗同步，不改写 LRC 或音频位置。偏移保存后发布 `lyrics:offset-changed(trackId)`，暂停时立即刷新当前帧，不请求歌词。单份临时已加载歌词快照用于当前歌词可用性检查，不进入备份。
 
-`trackManager` 位于布局分支之上，固定目标快照，包含导入、恢复及可展开的时间对齐；遮罩只有在其上按下、松开且未拖动才关闭。独立 `lyricSearchPage` 接入两套导航的 tag 7，返回恢复入口和滚动位置；现代布局的管理入口放在现有播放操作栏。歌曲条目操作使用现有 icon 样式，仅行悬停显示。`LyricSearchSession` 在主题分支外保留目标、各平台页码及已完成搜索缓存；输入防抖 500ms，回车立即搜索，平台切换只筛选缓存，分页补齐未缓存页，各来源错误独立重试。候选只预览，明确应用后仍留在页面。搜索/预览/同步正文检查各有请求代次，关闭、离开及主题销毁取消在途请求，回调与 `$evalAsync` 内均复核。内容保存后发布 `lyrics:changed(trackId)`，PlayController 取消旧请求并强制刷新当前 ID，原文/译文始终成对转发。
+`trackManager` 位于布局分支之上，固定目标快照，包含导入、恢复及可展开的时间对齐；遮罩只有在其上按下、松开且未拖动才关闭。独立 `lyricSearchPage` 接入两套导航的 tag 7，返回恢复入口和滚动位置；现代布局的管理入口放在现有播放操作栏。歌曲条目操作横向排列，在行悬停或键盘聚焦时显示。`LyricSearchSession` 在主题分支外保留目标、各平台页码及已完成搜索缓存；输入防抖 500ms，回车立即搜索，平台切换只筛选缓存，分页补齐未缓存页，各来源错误独立重试。候选只预览，明确应用后仍留在页面。搜索/预览/同步正文检查各有请求代次，关闭、离开及主题销毁取消在途请求，回调与 `$evalAsync` 内均复核。内容保存后发布 `lyrics:changed(trackId)`，PlayController 取消旧请求并强制刷新当前 ID，原文/译文始终成对转发。
 
-`loudness-settings` 独立保存 `{ enabled, mode }`，避免旧控制器保存 `player-settings` 时覆盖均衡设置。RMS 摘要最多 128 个，仅在本次页面运行中保留；解码缓冲仅保留当前资产。两套布局使用同一个 `loudness-control` 指令，按钮在 `volume-wheel` 容器之外；主题重建从核心获取真实状态，销毁时移除状态、键盘、外部点击和语言订阅。浏览器扩展保持默认 Howler 行为，此次桌面专用桥不暴露给扩展。
+两套模板的列表、搜索结果和队列由 `trackActions` 提供 `info` 歌曲详情入口，点击、Enter/Space 阻止行播放事件；播放栏不放详情入口。共享 `trackDetails` 弹窗依次显示歌名、歌手、专辑、封面文件名、歌词文件名、音质、编码、时长、本地路径与文件名、大小，网络歌曲末尾追加歌词平台。缺失字段留空，长文本换行且可复制，歌名沿用按钮的原生 title 提示。网络音频须点击读取，桌面解析上限 8 MiB、总预算 15 秒；关闭、主题/目标/实际音源变化取消请求，并在异步完成及 Angular 更新内部复核目标和代次。
+
+`loudness-settings` 独立保存 `{ enabled, mode }`，避免旧控制器保存 `player-settings` 时覆盖均衡设置。RMS 摘要最多 128 个，仅在本次页面运行中保留；解码缓冲仅保留当前资产。两套布局使用同一个 `loudness-control` 指令，按钮在 `volume-wheel` 容器之外；图标为实心三滑杆，默认跟随同栏颜色，启用使用主题强调色。鼠标离开弹窗及控制区整组 200 毫秒后关闭，现代布局恢复时长；组内往返取消关闭，原生模式选择框打开时暂缓关闭。键盘焦点显现控制区，Tab 离组关闭，Esc 关闭并回到按钮；鼠标点击留下的焦点不阻止收起。主题重建从核心获取真实状态，销毁时清理计时器及状态、鼠标、焦点、键盘、外部点击和语言订阅。浏览器扩展保持默认 Howler 行为，此次桌面专用桥不暴露给扩展。
 
 JSON 备份遍历 localStorage，恢复按键合并，不先清空；Gist 只显式排除部分键，不保证脱敏。认证键如 githubOauthAccessKey、lastfmtoken、lastfmsession 的实际值不能进入日志或测试。备份不包含原音频、electron-store 或完整 Cookie。
+
+封面副本位于桌面 userData 的 `covers`，JSON/Gist 仅含 UUID 和原文件名等引用；跨设备恢复需同时迁移该目录。既有音频、歌曲/歌单 ID 和存储键不迁移。
 
 | 主题   | 主题 CSS / 公共 CSS          |
 | ------ | ---------------------------- |
@@ -105,6 +116,8 @@ JSON 备份遍历 localStorage，恢复按键合并，不先清空；Gist 只显
 | black  | origin.css / common.css      |
 | white2 | iparanoid2.css / common2.css |
 | black2 | origin2.css / common2.css    |
+
+`visual-polish.css` 在主题及公共 CSS 之后加载，保留主题变量、经典布局描边 1.5/现代布局描边 2。歌词管理复用 Feather `align-right`，详情复用 `info`，几何与用户提供 SVG 一致；作用域内显式设置 currentColor、fill:none 和图标尺寸以避免公共 span/SVG 样式干扰。现代收起侧栏宽 60px、图标禁止缩小、文字不占位；自建和收藏歌单显示封面缩略图并在缺失或加载失败时回退默认封面。导航和拖放入口保留。
 
 两套 ng-if 模板都会销毁和重建控制器；播放快捷键和订阅必须随作用域移除，不能误删新实例的快捷键。翻译支持 zh-CN、zh-TC、en-US、fr-FR、ko-KR、pt-BR 的加载和恢复，zh-CN 回退。新增键同步六份资源和两套 UI；资源存在不是视觉和菜单完整性证明。
 

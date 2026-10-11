@@ -55,6 +55,18 @@
    * @type {Object}
    */
   const l1Player = {
+    getResolvedAudioSource(trackId) {
+      return new Promise((resolve) =>
+        getPlayerAsync(mode, (player) =>
+          resolve(player.getResolvedAudioSource(trackId))
+        )
+      );
+    },
+    onAudioSourceChanged(callback) {
+      return addPlayerListener(mode, (msg) => {
+        if (msg.type === 'BG_PLAYER:AUDIO_SOURCE') callback(msg.data);
+      });
+    },
     requestFrameUpdate() {
       getPlayerAsync(mode, (player) => player.sendFrameUpdate());
     },

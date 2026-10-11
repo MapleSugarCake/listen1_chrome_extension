@@ -68,6 +68,8 @@
       // 播放地址解析成功后按曲目 ID 缓存在内存中，
       // 不写入持久化存储，因为平台地址会过期。
       this._media_uri_list = {};
+      this._resolvedSources = new Map();
+      this._sourceSequence = 0;
       this.playedFrom = 0;
       this.mode =
         window.listen1Desktop ||
@@ -442,6 +444,7 @@
       if (removed.howl) removed.howl.unload();
       delete this._media_uri_list[removed.id];
       delete this._media_expiry[removed.id];
+      this._resolvedSources.delete(removed.id);
       this._loadRetries.delete(removed.id);
       this._random_playlist = [];
       const newIndex = this.playlist.findIndex(
@@ -531,6 +534,7 @@
       this._random_playlist = [];
       this._media_uri_list = {};
       this._media_expiry = {};
+      this._resolvedSources.clear();
       this._loadRetries.clear();
       if (notify) {
         this.sendPlaylistEvent();
@@ -1307,8 +1311,33 @@
         }
         this._media_uri_list[url] = uri;
         this._media_expiry[url] = Date.now() + 5 * 60 * 1000;
+        const track = this.playlist.find((item) => item.id === url);
+        const source = {
+          trackId: url,
+          url: uri,
+          platform: track?.platform || track?.source,
+          identity: this._sourceSequence + 1,
+        };
+        this._sourceSequence = source.identity;
+        this._resolvedSources.set(url, source);
+        playerSendMessage(this.mode, {
+          type: 'BG_PLAYER:AUDIO_SOURCE',
+          data: { id: url, identity: source.identity },
+        });
         if (changed && materialized) this.finishLoad(this.index, playNow);
       }
+    }
+
+    getResolvedAudioSource(trackId) {
+      const value = this._resolvedSources.get(trackId);
+      if (
+        !value ||
+        value.url !== this._media_uri_list[trackId] ||
+        (this.currentAudio?.id !== trackId &&
+          this._media_expiry[trackId] <= Date.now())
+      )
+        return null;
+      return { ...value };
     }
 
     /**
@@ -1333,7 +1362,16 @@
       if (typeof trackId !== 'string' || !trackId.startsWith('lmtrack_'))
         return;
       const fields = {};
-      ['title', 'artist', 'album', 'artist_id', 'album_id'].forEach((key) => {
+      [
+        'title',
+        'artist',
+        'album',
+        'artist_id',
+        'album_id',
+        'img_url',
+        'cover_asset_id',
+        'cover_file_name',
+      ].forEach((key) => {
         if (typeof metadata[key] === 'string') fields[key] = metadata[key];
       });
       let changed = false;
@@ -1345,7 +1383,19 @@
       });
       if (changed) {
         this.sendPlaylistEvent();
-        if (this.currentAudio?.id === trackId) this.sendLoadEvent();
+        if (this.currentAudio?.id === trackId) {
+          if (navigator.mediaSession && typeof MediaMetadata !== 'undefined') {
+            navigator.mediaSession.metadata = new MediaMetadata({
+              title: this.currentAudio.title,
+              artist: this.currentAudio.artist,
+              album: this.currentAudio.album,
+              artwork: this.currentAudio.img_url
+                ? [{ src: this.currentAudio.img_url }]
+                : [],
+            });
+          }
+          this.sendLoadEvent();
+        }
       }
     }
 

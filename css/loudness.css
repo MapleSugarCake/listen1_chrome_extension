@@ -1,8 +1,11 @@
 /* A sibling of the volume wheel in both layouts. */
-.footer .footertime:focus-within .bottomprogressbar {
+.footer .footertime.loudness-controls-visible {
+  padding: 0;
+}
+.footer .footertime.loudness-controls-visible .bottomprogressbar {
   display: flex;
 }
-.footer .footertime:focus-within .timeswitch {
+.footer .footertime.loudness-controls-visible .timeswitch {
   display: none;
 }
 [loudness-control] {
@@ -12,6 +15,9 @@
 .loudness-control {
   position: relative;
   color: var(--volume-icon-color, var(--text-default-color, currentColor));
+}
+.footer .footertime .loudness-control {
+  color: var(--text-default-color, currentColor);
 }
 .loudness-button {
   min-width: 0;
@@ -31,6 +37,8 @@
 .loudness-button svg {
   width: 18px;
   height: 18px;
+  fill: currentColor;
+  stroke: none;
 }
 .loudness-button:hover {
   background: transparent;

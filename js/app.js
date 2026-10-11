@@ -149,6 +149,7 @@ const main = () => {
 
   l1Player.injectDirectives(app);
   window.injectLoudnessControl(app);
+  window.injectTrackDetails(app);
   window.injectTrackManagement(app);
 
   app.filter(

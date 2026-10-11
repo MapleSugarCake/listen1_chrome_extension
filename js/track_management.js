@@ -128,6 +128,12 @@ function bindLyricEditor(boundScope, root) {
           }
           state.preview = {
             ...replacement,
+            provenance:
+              window.Lyrics.provenance(data.provenance) ||
+              window.Lyrics.provenance({
+                kind: 'platform',
+                platform: track.source,
+              }),
             ready: !restoring,
             lines: window.Lyrics.parse(replacement.lyric, replacement.tlyric),
             label: restoring
@@ -170,6 +176,7 @@ function bindLyricEditor(boundScope, root) {
           const replacement = window.Lyrics.normalize({
             lyric: result.lyric,
             tlyric: '',
+            provenance: { kind: 'file', fileName: result.fileName },
           });
           state.preview = {
             ...replacement,
@@ -292,7 +299,8 @@ function bindLyricEditor(boundScope, root) {
 const lyricPreviewTemplate = `<div class="track-manager-preview" ng-if="state.preview">
   <h3>{{t('_LYRIC_PREVIEW')}} — {{state.preview.label}}</h3>
   <p ng-repeat="line in state.preview.lines track by $index" ng-class="{translation: line.translationFlag}"><time>{{time(line.seconds)}}</time> {{line.content}}</p>
-  </div><button type="button" class="apply-lyrics" ng-if="state.preview || state.previewing || state.importing || state.error" ng-click="apply()" ng-disabled="!state.preview.ready || state.previewing || state.importing">{{t('_LYRIC_APPLY')}}</button>`;
+  </div>`;
+const lyricApplyTemplate = `<button type="button" class="apply-lyrics" ng-if="state.preview || state.previewing || state.importing || state.error" ng-click="apply()" ng-disabled="!state.preview.ready || state.previewing || state.importing">{{t('_LYRIC_APPLY')}}</button>`;
 const lyricFeedbackTemplate = `<p ng-if="state.previewing || state.importing" role="status">{{t('_LYRIC_LOADING')}}</p>
   <p class="track-manager-error" ng-if="state.error" role="alert">{{state.error}} <button type="button" ng-if="state.canRetry" ng-click="retry()">{{t('_LYRIC_RETRY')}}</button></p>
   <p class="track-manager-message" ng-if="state.message" role="status">{{state.message}}</p>`;
@@ -463,21 +471,28 @@ window.injectTrackManagement = (app) => {
 
   app.directive('trackActions', [
     '$rootScope',
-    ($rootScope) => ({
+    'TrackPresentation',
+    ($rootScope, presentation) => ({
       restrict: 'E',
-      scope: { track: '=' },
+      scope: { track: '=', details: '@' },
       template: `<span class="track-actions" ng-if="desktop && track.id" data-track-id="{{track.id}}">
-      <a class="manage-lyrics icon" role="button" tabindex="0" ng-click="open('lyrics', $event)" ng-keydown="activate('lyrics', $event)" title="{{t('_LYRIC_MANAGE')}}" aria-label="{{t('_LYRIC_MANAGE')}}"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M5 2h10l5 5v15H5V2zm2 2v16h11V8h-5V4H7zm2 7h7v2H9v-2zm0 4h7v2H9v-2z"/></svg></a>
-      <a class="edit-local-track icon" role="button" tabindex="0" ng-if="local()" ng-click="open('metadata', $event)" ng-keydown="activate('metadata', $event)" title="{{t('_LOCAL_EDIT')}}" aria-label="{{t('_LOCAL_EDIT')}}"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 17.3V21h3.7L18 9.7 14.3 6 3 17.3zM20.7 7a1 1 0 000-1.4l-2.3-2.3a1 1 0 00-1.4 0L15.2 5 19 8.8 20.7 7z"/></svg></a>
+      <a class="show-track-details icon" role="button" tabindex="0" ng-if="details !== 'false'" ng-click="open('details', $event)" ng-keydown="activate('details', $event)" ng-dblclick="$event.stopPropagation()" title="{{t('_TRACK_DETAILS')}}" aria-label="{{t('_TRACK_DETAILS')}}"><svg class="action-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#info"></use></svg></a>
+      <a class="manage-lyrics icon" role="button" tabindex="0" ng-click="open('lyrics', $event)" ng-keydown="activate('lyrics', $event)" ng-dblclick="$event.stopPropagation()" title="{{t('_LYRIC_MANAGE')}}" aria-label="{{t('_LYRIC_MANAGE')}}"><svg class="action-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#align-right"></use></svg></a>
+      <a class="edit-local-track icon" role="button" tabindex="0" ng-if="local()" ng-click="open('metadata', $event)" ng-keydown="activate('metadata', $event)" ng-dblclick="$event.stopPropagation()" title="{{t('_LOCAL_EDIT')}}" aria-label="{{t('_LOCAL_EDIT')}}"><svg class="action-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#edit-2"></use></svg></a>
     </span>`,
       link(boundScope) {
         const scope = boundScope;
         scope.desktop = !!window.listen1Desktop;
         scope.t = (key) => i18next.t(key);
         scope.local = () => scope.track?.id?.startsWith('lmtrack_');
+        scope.$watch('track', (track) => presentation.hydrate(track));
         scope.open = (mode, event) => {
           event.preventDefault();
           event.stopPropagation();
+          if (mode === 'details') {
+            $rootScope.$broadcast('track-details:open', scope.track);
+            return;
+          }
           $rootScope.$broadcast('track-manager:open', {
             track: scope.track,
             mode,
@@ -506,10 +521,11 @@ window.injectTrackManagement = (app) => {
       <header><h2 id="track-manager-title">{{t(state.mode === 'lyrics' ? '_LYRIC_MANAGE' : '_LOCAL_EDIT')}}</h2><button type="button" class="track-manager-close" ng-click="close()" aria-label="{{t('_LYRIC_CLOSE')}}">×</button></header>
       <p class="track-manager-target"><strong>{{state.target.title}}</strong><span ng-if="state.target.artist"> — {{state.target.artist}}</span><span ng-if="state.target.album"> · {{state.target.album}}</span></p>
       <div ng-if="state.mode === 'metadata'" class="track-metadata-form">
+        <div class="local-cover-editor"><img class="local-cover-preview" ng-src="{{state.cover.url || state.target.img_url || 'images/mycover.jpg'}}" err-src="images/mycover.jpg" alt=""><div><button type="button" class="choose-local-cover" ng-click="chooseCover()" ng-disabled="state.coverLoading || state.saving">{{t('_COVER_CHANGE')}}</button><p>{{state.cover.fileName || state.target.cover_file_name}}</p><small>{{t('_COVER_HELP')}}</small></div></div>
         <label>{{t('_TRACK_TITLE')}} <input class="metadata-title" ng-model="state.title" required></label>
         <label>{{t('_ARTIST')}} <input class="metadata-artist" ng-model="state.artist" placeholder="{{t('_LOCAL_OPTIONAL')}}"></label>
         <label>{{t('_ALBUM')}} <input class="metadata-album" ng-model="state.album" placeholder="{{t('_LOCAL_OPTIONAL')}}"></label>
-        <button class="save-local-metadata" ng-click="saveMetadata()" ng-disabled="!state.title.trim()">{{t('_LOCAL_SAVE')}}</button>
+        <button class="save-local-metadata" ng-click="saveMetadata()" ng-disabled="!state.title.trim() || state.saving || state.coverLoading">{{t('_LOCAL_SAVE')}}</button>
       </div>
       <div ng-if="state.mode === 'lyrics'">
         <div class="lyric-import-actions"><button class="open-lyric-search" ng-click="openSearch()">{{t('_LYRIC_SEARCH')}}</button><button class="import-local-lyric" ng-click="importLyric()" ng-disabled="state.importing">{{t('_LYRIC_IMPORT')}}</button><button class="restore-original-lyric" ng-click="restore()" ng-disabled="state.previewing">{{t('_LYRIC_RESTORE')}}</button><small>{{t('_LYRIC_IMPORT_HELP')}}</small></div>
@@ -519,7 +535,7 @@ window.injectTrackManagement = (app) => {
           <button class="lyric-earlier" ng-click="adjust(-300)" ng-disabled="!state.syncAvailable || state.checking || state.offsetMs <= -60000">{{t('_LYRIC_EARLIER')}}</button><button class="lyric-later" ng-click="adjust(300)" ng-disabled="!state.syncAvailable || state.checking || state.offsetMs >= 60000">{{t('_LYRIC_LATER')}}</button><button class="lyric-reset" ng-click="adjust(0)" ng-disabled="!state.offsetMs">{{t('_LYRIC_RESET')}}</button>
           <small>{{t('_LYRIC_TIMING_HELP')}}</small><p ng-if="state.checking">{{t('_LYRIC_LOADING')}}</p><p ng-if="!state.checking && !state.syncAvailable && !state.checkError">{{t('_LYRIC_NO_SYNC')}}</p><p ng-if="state.checkError" class="track-manager-error">{{state.checkError}} <button ng-click="checkSync()">{{t('_LYRIC_RETRY')}}</button></p>
         </div></div>
-        ${lyricPreviewTemplate}
+        ${lyricPreviewTemplate}${lyricApplyTemplate}
       </div>${lyricFeedbackTemplate}
       </section></div>`,
       link(boundScope, element) {
@@ -530,6 +546,11 @@ window.injectTrackManagement = (app) => {
         let canClose = false;
         scope.close = () => {
           scope.cancel();
+          scope.state.closed = true;
+          if (scope.state.cover && !scope.state.saving)
+            window.listen1Desktop
+              .releaseLocalCover(scope.state.cover.assetId)
+              .catch(() => {});
           scope.state = {};
           gesture = null;
           canClose = false;
@@ -609,23 +630,102 @@ window.injectTrackManagement = (app) => {
           scope.close();
           session.open(track);
         };
-        scope.saveMetadata = () => {
+        scope.chooseCover = () => {
           const { state } = scope;
+          if (state.saving || state.coverLoading) return;
+          state.coverLoading = true;
+          window.listen1Desktop
+            .importLocalCover()
+            .then((result) => {
+              if (scope.state !== state) {
+                if (result.assetId)
+                  window.listen1Desktop
+                    .releaseLocalCover(result.assetId)
+                    .catch(() => {});
+                return;
+              }
+              scope.$evalAsync(() => {
+                if (scope.state !== state) {
+                  if (result.assetId)
+                    window.listen1Desktop
+                      .releaseLocalCover(result.assetId)
+                      .catch(() => {});
+                  return;
+                }
+                state.coverLoading = false;
+                if (result.cancelled) return;
+                if (result.error) {
+                  state.error = scope.t(`_${result.error.code}`);
+                  return;
+                }
+                if (state.cover)
+                  window.listen1Desktop
+                    .releaseLocalCover(state.cover.assetId)
+                    .catch(() => {});
+                state.cover = result;
+                state.error = '';
+              });
+            })
+            .catch(() =>
+              scope.$evalAsync(() => {
+                if (scope.state === state) {
+                  state.coverLoading = false;
+                  state.error = scope.t('_COVER_READ_FAILED');
+                }
+              })
+            );
+        };
+        scope.saveMetadata = async () => {
+          const { state } = scope;
+          if (state.saving) return;
+          state.saving = true;
           try {
             const metadata = MediaService.updateLocalTrack(state.target.id, {
               title: state.title,
               artist: state.artist,
               album: state.album,
+              ...(state.cover
+                ? {
+                    cover_asset_id: state.cover.assetId,
+                    cover_file_name: state.cover.fileName,
+                    img_url: state.cover.url,
+                  }
+                : {}),
             });
+            const savedCover = state.cover;
+            state.cover = null;
+            // Persistence is the commit point. A lost acknowledgement must not
+            // allow closing the editor to delete a now-referenced image.
+            if (savedCover)
+              await window.listen1Desktop
+                .retainLocalCover(savedCover.assetId)
+                .catch(() => {});
             l1Player.updateTrackMetadata(state.target.id, metadata);
-            $rootScope.$broadcast('track:metadata', state.target.id, metadata);
-            Object.assign(state.target, metadata);
-            state.error = '';
-            state.errorCode = null;
-            state.canRetry = false;
-            state.message = scope.t('_LOCAL_SAVED');
+            scope.$evalAsync(() => {
+              $rootScope.$broadcast(
+                'track:metadata',
+                state.target.id,
+                metadata
+              );
+              Object.assign(state.target, metadata);
+              state.cover = null;
+              state.error = '';
+              state.errorCode = null;
+              state.canRetry = false;
+              state.message = scope.t('_LOCAL_SAVED');
+            });
           } catch (error) {
-            scope.fail(error, scope.saveMetadata);
+            scope.$evalAsync(() => {
+              if (scope.state === state) scope.fail(error, scope.saveMetadata);
+            });
+            if (state.closed && state.cover)
+              window.listen1Desktop
+                .releaseLocalCover(state.cover.assetId)
+                .catch(() => {});
+          } finally {
+            scope.$evalAsync(() => {
+              state.saving = false;
+            });
           }
         };
         scope.$watch('theme', (value, previous) => {
@@ -651,7 +751,7 @@ window.injectTrackManagement = (app) => {
       <header><button class="lyric-search-back" ng-click="back()">‹ {{t('_LYRIC_BACK')}}</button><h2 id="lyric-search-title">{{t('_LYRIC_SEARCH')}}</h2></header>
       <p class="lyric-search-target">{{t('_LYRIC_TARGET')}} <strong>{{state.target.title}}</strong><span ng-if="state.target.artist"> — {{state.target.artist}}</span></p>
       <form class="lyric-search-form" ng-submit="submit()"><input class="lyric-search-keywords" type="search" ng-model="state.keywords" ng-model-options="{debounce: 500}" ng-change="search()" aria-label="{{t('_LYRIC_KEYWORDS')}}" placeholder="{{t('_LYRIC_KEYWORDS')}}"><button type="submit" class="search-lyrics" ng-disabled="!state.keywords.trim()">{{t('_LYRIC_SEARCH')}}</button></form>
-      <ul class="source-list lyric-source-tabs"><li class="source-button" ng-class="{active: state.source === 'allmusic'}"><button data-lyric-source="allmusic" ng-click="filter('allmusic')">{{t('_LYRIC_ALL_PLATFORMS')}}</button></li><li class="source-button" ng-repeat="source in sources" ng-class="{active: state.source === source.name}"><button data-lyric-source="{{source.name}}" ng-click="filter(source.name)">{{t(source.displayId)}}</button></li></ul>
+      <div class="lyric-search-toolbar"><ul class="source-list lyric-source-tabs"><li class="source-button" ng-class="{active: state.source === 'allmusic'}"><button data-lyric-source="allmusic" ng-click="filter('allmusic')">{{t('_LYRIC_ALL_PLATFORMS')}}</button></li><li class="source-button" ng-repeat="source in sources" ng-class="{active: state.source === source.name}"><button data-lyric-source="{{source.name}}" ng-click="filter(source.name)">{{t(source.displayId)}}</button></li></ul>${lyricApplyTemplate}</div>
       <div class="lyric-search-columns"><div class="lyric-search-results">
       <ul class="lyric-source-status"><li ng-repeat="source in state.sourceStates">{{t(source.name)}}: {{sourceMessage(source)}} <button ng-if="source.state === 'error'" ng-click="retrySource(source.name)">{{t('_LYRIC_RETRY')}}</button></li></ul>
       <p ng-if="state.searching" role="status">{{t('_LYRIC_LOADING')}}</p><p ng-if="state.searched && !state.searching && !state.candidates.length">{{t('_LYRIC_NO_CANDIDATES')}}</p>

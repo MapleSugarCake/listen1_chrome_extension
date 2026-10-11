@@ -80,6 +80,35 @@ window.Lyrics = (() => {
       : { valid: false, code: 'NO_SYNC_LYRIC' };
   }
 
+  function provenance(value) {
+    if (!value || !['file', 'platform', 'embedded'].includes(value.kind))
+      return null;
+    const result = { kind: value.kind };
+    if (
+      value.kind === 'file' &&
+      typeof value.fileName === 'string' &&
+      value.fileName.length <= 255 &&
+      !/[\\/]/.test(value.fileName) &&
+      ![...value.fileName].some((char) => char.charCodeAt(0) < 32)
+    )
+      result.fileName = value.fileName;
+    if (
+      value.kind === 'platform' &&
+      [
+        'netease',
+        'qq',
+        'kugou',
+        'kuwo',
+        'bilibili',
+        'migu',
+        'taihe',
+        'xiami',
+      ].includes(value.platform)
+    )
+      result.platform = value.platform;
+    return result;
+  }
+
   function normalize(data) {
     const lyric = text(data?.lyric);
     if (!lines(lyric, false).some((line) => line.content.trim()))
@@ -90,9 +119,16 @@ window.Lyrics = (() => {
     const tlyric = lines(translation, true).some((line) => line.content.trim())
       ? translation
       : '';
-    return { lyric, tlyric };
+    const origin = provenance(data?.provenance);
+    return { lyric, tlyric, ...(origin ? { provenance: origin } : {}) };
   }
 
+  const origins = new Map();
+  function rememberOrigin(trackId, value) {
+    origins.delete(trackId);
+    origins.set(trackId, provenance(value));
+    while (origins.size > 128) origins.delete(origins.keys().next().value);
+  }
   function key(trackId) {
     if (typeof trackId !== 'string' || !trackId)
       throw new Error('Invalid track ID');
@@ -108,6 +144,14 @@ window.Lyrics = (() => {
     } catch {
       return null;
     }
+  }
+
+  function getProvenance(trackId, track) {
+    const override = getOverride(trackId);
+    if (override) return provenance(override.provenance);
+    return origins.has(trackId)
+      ? origins.get(trackId)
+      : provenance(track?.lyric_provenance);
   }
 
   function saveOverride(trackId, data) {
@@ -187,6 +231,9 @@ window.Lyrics = (() => {
     parse,
     validateLocal,
     normalize,
+    provenance,
+    rememberOrigin,
+    getProvenance,
     getOverride,
     saveOverride,
     removeOverride,

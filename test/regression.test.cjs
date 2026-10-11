@@ -192,11 +192,15 @@ test('editing current local metadata preserves paused audio, position, source an
     title: 'Edited',
     artist: '',
     album: '',
+    img_url: 'file:///C:/profile/cover.png',
+    cover_asset_id: '12345678-1234-1234-1234-123456789abc',
+    cover_file_name: '实际封面.png',
     source: 'qq',
     id: 'qqtrack_wrong',
     howl: null,
   });
   assert.equal(player.currentAudio.title, 'Edited');
+  assert.equal(player.currentAudio.cover_file_name, '实际封面.png');
   assert.equal(player.currentAudio.id, track.id);
   assert.equal(player.currentAudio.source, 'localmusic');
   assert.equal(player.currentHowl, audio);
@@ -210,6 +214,29 @@ test('editing current local metadata preserves paused audio, position, source an
   );
   player.updateTrackMetadata('netrack_1', { title: 'Ignored' });
   assert.equal(player.playlist[1].title, 'Online');
+});
+
+test('read-only audio source snapshots expose actual fallback and invalidate after clearing', () => {
+  const { player, requests } = playerHarness();
+  player.setNewPlaylist([{ id: 'netrack_a', source: 'netease' }]);
+  assert.equal(player.getResolvedAudioSource('netrack_a'), null);
+  player.loadById('netrack_a');
+  player.play();
+  requests[0].success({ url: 'https://qq.com/fallback.wav', platform: 'qq' });
+  const first = player.getResolvedAudioSource('netrack_a');
+  assert.equal(first.platform, 'qq');
+  assert.equal(first.url, 'https://qq.com/fallback.wav');
+  first.url = 'tampered';
+  assert.equal(
+    player.getResolvedAudioSource('netrack_a').url,
+    'https://qq.com/fallback.wav'
+  );
+  player.setMediaURI('https://qq.com/changed.wav', 'netrack_a');
+  assert.ok(
+    player.getResolvedAudioSource('netrack_a').identity > first.identity
+  );
+  player.clearPlaylist();
+  assert.equal(player.getResolvedAudioSource('netrack_a'), null);
 });
 
 test('empty queue controls do not throw or resolve a nonexistent song' /**

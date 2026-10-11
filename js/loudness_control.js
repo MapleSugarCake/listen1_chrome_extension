@@ -62,36 +62,152 @@ window.injectLoudnessControl = (app) => {
         scope.state.enabled = false;
         scope.change();
       };
-      scope.toggle = () => {
-        scope.open = !scope.open;
+      const host = element[0];
+      const time = host.closest('.footertime');
+      const volume = host.nextElementSibling;
+      let destroyed = false;
+      let hovered = false;
+      let keyboard = false;
+      let closeTimer;
+      const contains = (target) =>
+        !!target &&
+        (time
+          ? time.contains(target)
+          : host.contains(target) ||
+            (volume?.classList.contains('volume-ctrl') &&
+              volume.contains(target)));
+      const keyboardFocus = () => keyboard && contains(document.activeElement);
+      const selecting = () => !!host.querySelector('select')?.matches(':open');
+      const visibility = () => {
+        time?.classList.toggle(
+          'loudness-controls-visible',
+          scope.open || keyboardFocus()
+        );
       };
-      const close = (event) => {
-        if (!scope.open) return;
-        if (event.type === 'pointerdown' && element[0].contains(event.target))
+      const cancelClose = () => {
+        clearTimeout(closeTimer);
+        closeTimer = undefined;
+      };
+      const dismiss = (restoreFocus = false) => {
+        cancelClose();
+        scope.open = false;
+        if (restoreFocus) host.querySelector('.loudness-button').focus();
+        visibility();
+      };
+      // The native select owns pointer/key events while its picker is open.
+      // Wait for it to finish rather than removing its parent dialog.
+      const scheduleClose = () => {
+        if (
+          destroyed ||
+          hovered ||
+          keyboardFocus() ||
+          (!scope.open &&
+            !time?.classList.contains('loudness-controls-visible'))
+        ) {
+          cancelClose();
           return;
-        if (event.type === 'keydown' && event.key !== 'Escape') return;
-        scope.$evalAsync(() => {
-          scope.open = false;
-        });
-        if (event.type === 'keydown')
-          element[0].querySelector('.loudness-button').focus();
+        }
+        if (closeTimer !== undefined) return;
+        closeTimer = setTimeout(() => {
+          closeTimer = undefined;
+          if (destroyed || hovered || keyboardFocus()) return;
+          if (selecting()) {
+            scheduleClose();
+            return;
+          }
+          scope.$evalAsync(() => {
+            if (destroyed || hovered || keyboardFocus()) return;
+            if (selecting()) scheduleClose();
+            else dismiss();
+          });
+        }, 200);
+      };
+      scope.toggle = () => {
+        cancelClose();
+        scope.open = !scope.open;
+        visibility();
+        scheduleClose();
+      };
+      const pointer = (event) => {
+        if (event.pointerType === 'touch') return;
+        if (event.type === 'pointermove') keyboard = false;
+        hovered = contains(
+          event.type === 'pointerout' ? event.relatedTarget : event.target
+        );
+        visibility();
+        scheduleClose();
+      };
+      const pointerDown = (event) => {
+        keyboard = false;
+        hovered = contains(event.target);
+        visibility();
+        if (hovered) cancelClose();
+        else {
+          cancelClose();
+          scope.$evalAsync(() => {
+            if (!destroyed) dismiss();
+          });
+        }
+      };
+      const keyDown = (event) => {
+        if (selecting()) return;
+        keyboard = true;
+        visibility();
+        scheduleClose();
+        if (event.key === 'Escape' && scope.open) {
+          scope.$evalAsync(() => {
+            if (!destroyed) dismiss(true);
+          });
+        }
+      };
+      const focus = (event) => {
+        // activeElement briefly becomes body between blur and the next focus.
+        // An Angular blur digest can run before that next focus is delivered.
+        if (event.type === 'focusout') {
+          scheduleClose();
+          return;
+        }
+        if (keyboard && !contains(event.target)) {
+          scope.$evalAsync(() => {
+            if (!destroyed && !contains(document.activeElement)) dismiss();
+          });
+        } else {
+          visibility();
+          scheduleClose();
+        }
       };
       const language = () => scope.$evalAsync();
-      document.addEventListener('pointerdown', close);
-      document.addEventListener('keydown', close);
+      const listeners = {
+        pointerover: pointer,
+        pointerout: pointer,
+        pointermove: pointer,
+        pointerdown: pointerDown,
+        keydown: keyDown,
+        keyup: scheduleClose,
+        change: scheduleClose,
+        focusin: focus,
+        focusout: focus,
+      };
+      Object.entries(listeners).forEach(([type, listener]) => {
+        document.addEventListener(type, listener, true);
+      });
       i18next.on('languageChanged', language);
       const unsubscribe = addPlayerListener('front', (message) => {
         if (message.type === 'BG_PLAYER:LOUDNESS') {
           scope.$evalAsync(() => {
-            scope.state = { ...message.data };
+            if (!destroyed) scope.state = { ...message.data };
           });
         }
       });
       l1Player.requestLoudness();
       scope.$on('$destroy', () => {
+        destroyed = true;
+        cancelClose();
+        time?.classList.remove('loudness-controls-visible');
         unsubscribe();
-        document.removeEventListener('pointerdown', close);
-        document.removeEventListener('keydown', close);
+        Object.entries(listeners).forEach(([type, listener]) => {
+          document.removeEventListener(type, listener, true);
+        });
         i18next.off('languageChanged', language);
       });
     },
