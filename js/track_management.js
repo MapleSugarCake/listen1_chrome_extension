@@ -302,8 +302,8 @@ const lyricPreviewTemplate = `<div class="track-manager-preview" ng-if="state.pr
   </div>`;
 const lyricApplyTemplate = `<button type="button" class="apply-lyrics" ng-if="state.preview || state.previewing || state.importing || state.error" ng-click="apply()" ng-disabled="!state.preview.ready || state.previewing || state.importing">{{t('_LYRIC_APPLY')}}</button>`;
 const lyricFeedbackTemplate = `<p ng-if="state.previewing || state.importing" role="status">{{t('_LYRIC_LOADING')}}</p>
-  <p class="track-manager-error" ng-if="state.error" role="alert">{{state.error}} <button type="button" ng-if="state.canRetry" ng-click="retry()">{{t('_LYRIC_RETRY')}}</button></p>
-  <p class="track-manager-message" ng-if="state.message" role="status">{{state.message}}</p>`;
+  <p class="track-manager-error" ng-if="state.error" role="alert">{{state.error}} <button type="button" ng-if="state.canRetry" ng-click="retry()">{{t('_LYRIC_RETRY')}}</button></p>`;
+const lyricMessageTemplate = `<p class="track-manager-message" ng-if="state.message" role="status">{{state.message}}</p>`;
 
 window.injectTrackManagement = (app) => {
   app.factory('LyricSearchSession', [
@@ -536,7 +536,7 @@ window.injectTrackManagement = (app) => {
           <small>{{t('_LYRIC_TIMING_HELP')}}</small><p ng-if="state.checking">{{t('_LYRIC_LOADING')}}</p><p ng-if="!state.checking && !state.syncAvailable && !state.checkError">{{t('_LYRIC_NO_SYNC')}}</p><p ng-if="state.checkError" class="track-manager-error">{{state.checkError}} <button ng-click="checkSync()">{{t('_LYRIC_RETRY')}}</button></p>
         </div></div>
         ${lyricPreviewTemplate}${lyricApplyTemplate}
-      </div>${lyricFeedbackTemplate}
+      </div>${lyricFeedbackTemplate}${lyricMessageTemplate}
       </section></div>`,
       link(boundScope, element) {
         const scope = boundScope;
@@ -757,7 +757,7 @@ window.injectTrackManagement = (app) => {
       <p ng-if="state.searching" role="status">{{t('_LYRIC_LOADING')}}</p><p ng-if="state.searched && !state.searching && !state.candidates.length">{{t('_LYRIC_NO_CANDIDATES')}}</p>
       <ul class="detail-songlist lyric-candidates"><li class="head"><div class="title">{{t('_SONGS')}}</div><div class="artist">{{t('_ARTISTS')}}</div><div class="album">{{t('_ALBUMS')}}</div></li><li ng-repeat="candidate in state.candidates track by (candidate.source + ':' + candidate.id)" class="lyric-candidate" data-candidate-id="{{candidate.id}}" ng-class="{selected: state.candidateId === candidate.id && state.candidateSource === candidate.source}" ng-click="select(candidate)" ng-keydown="candidateKey($event, candidate)" tabindex="0" role="button"><div class="title"><strong>{{candidate.title}}</strong><small>{{t(candidate.source)}}</small></div><div class="artist">{{candidate.artist}}</div><div class="album">{{candidate.album}}</div></li></ul>
       <nav class="lyric-pagination" ng-if="state.searched"><button ng-click="page(-1)" ng-disabled="state.curpage <= 1 || state.searching">{{t('_LYRIC_PREVIOUS')}}</button><span>{{state.curpage}}</span><button ng-click="page(1)" ng-disabled="!state.hasMore || state.searching">{{t('_LYRIC_NEXT')}}</button></nav>
-      </div><aside class="lyric-search-preview">${lyricPreviewTemplate}${lyricFeedbackTemplate}</aside></div>
+      </div><aside class="lyric-search-preview">${lyricMessageTemplate}${lyricPreviewTemplate}${lyricFeedbackTemplate}</aside></div>
     </section>`,
       link(boundScope, element) {
         const scope = boundScope;
