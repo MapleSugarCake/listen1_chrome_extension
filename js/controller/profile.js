@@ -14,6 +14,26 @@ angular.module('listenone').controller('ProfileController', [
    * @returns {void} 无返回值。
    */
   ($scope) => {
+    const repository = isElectron()
+      ? 'listen1_desktop'
+      : 'listen1_chrome_extension';
+    const repositoryUrl = `https://github.com/MapleSugarCake/${repository}`;
+    $scope.about = {
+      name: 'listen1_maple',
+      email: 'maplecakeqaq@gmail.com',
+      homepage: repositoryUrl,
+      issues: `${repositoryUrl}/issues`,
+    };
+    /**
+     * 仅为有效显示版本追加 Maple 标记，不改变发布版本或重复追加后缀。
+     * @param version 当前版本数字或 Release 标签。
+     * @returns {string} 显示版本；缺失或空标签返回空字符串。
+     */
+    const displayVersion = (version) => {
+      if (typeof version !== 'string' || !version.trim()) return '';
+      const value = version.trim();
+      return value.endsWith('_maple') ? value : `${value}_maple`;
+    };
     let defaultLang = 'zh-CN';
     const supportLangs = ['zh-CN', 'zh-TC', 'en-US', 'fr-FR', 'ko-KR', 'pt-BR'];
     if (supportLangs.indexOf(navigator.language) !== -1) {
@@ -23,7 +43,7 @@ angular.module('listenone').controller('ProfileController', [
       defaultLang = localStorage.getObject('language');
     }
     $scope.lastestVersion = '';
-    $scope.currentVersion = isElectron() ? '2.35.1' : '2.33.0';
+    $scope.currentVersion = displayVersion(isElectron() ? '2.35.1' : '2.33.0');
     $scope.theme = '';
     $scope.proxyModes = [
       { name: 'system', displayId: '_PROXY_SYSTEM' },
@@ -95,15 +115,12 @@ angular.module('listenone').controller('ProfileController', [
     };
 
     /**
-     * 初始化语言、主题及运行环境标记，查询对应桌面或扩展上游的最新版本。
+     * 查询对应桌面或扩展 fork 的最新正式版本，并读取桌面代理配置。
      * 无参数。
      * @returns {void} 无返回值。
      */
     $scope.initProfile = () => {
-      const repository = isElectron()
-        ? 'listen1_desktop'
-        : 'listen1_chrome_extension';
-      const url = `https://api.github.com/repos/listen1/${repository}/releases/latest`;
+      const url = `https://api.github.com/repos/MapleSugarCake/${repository}/releases/latest`;
       axios
         .get(url)
         .then(
@@ -113,7 +130,9 @@ angular.module('listenone').controller('ProfileController', [
            * @returns {void} 无返回值。
            */
           (response) => {
-            $scope.lastestVersion = response.data.tag_name;
+            $scope.$evalAsync(() => {
+              $scope.lastestVersion = displayVersion(response.data?.tag_name);
+            });
           }
         )
         .catch(
@@ -123,7 +142,9 @@ angular.module('listenone').controller('ProfileController', [
            * @returns {void} 无返回值。
            */
           () => {
-            $scope.lastestVersion = '';
+            $scope.$evalAsync(() => {
+              $scope.lastestVersion = '';
+            });
           }
         );
 

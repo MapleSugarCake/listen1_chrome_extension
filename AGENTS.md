@@ -37,18 +37,18 @@ controller → l1Player → bridge → threadPlayer / Howler
 
 ## 3. 业务调用关系
 
-| 功能                   | 入口                                                                |
-| ---------------------- | ------------------------------------------------------------------- |
-| 单平台/聚合搜索、分页  | InstantSearchController → MediaService.search → provider.search     |
-| 精选/分类与歌单详情    | PlayListController / NavigationController → MediaService            |
-| 自建/收藏/排序/合并    | MyPlayListController / NavigationController → myplaylist            |
-| 播放、切歌和队列       | PlayController / 指令 → l1Player → threadPlayer                     |
-| 自动换源               | threadPlayer → MediaService.bootstrapTrack → 搜索与地址解析         |
-| 歌词和桌面歌词         | PlayController → getLyric；桌面桥接转发原文/翻译                    |
-| 本地导入               | NavigationController → listen1Desktop.importLocalMusic → localmusic |
-| 平台账号/歌单          | AuthController / PlatformController → provider / Cookie 适配        |
-| JSON/Gist              | NavigationController / GithubClient                                 |
-| 设置、主题、语言、代理 | ProfileController；桌面版本查询桌面上游，扩展查询扩展上游           |
+| 功能                   | 入口                                                                         |
+| ---------------------- | ---------------------------------------------------------------------------- |
+| 单平台/聚合搜索、分页  | InstantSearchController → MediaService.search → provider.search              |
+| 精选/分类与歌单详情    | PlayListController / NavigationController → MediaService                     |
+| 自建/收藏/排序/合并    | MyPlayListController / NavigationController → myplaylist                     |
+| 播放、切歌和队列       | PlayController / 指令 → l1Player → threadPlayer                              |
+| 自动换源               | threadPlayer → MediaService.bootstrapTrack → 搜索与地址解析                  |
+| 歌词和桌面歌词         | PlayController → getLyric；桌面桥接转发原文/翻译                             |
+| 本地导入               | NavigationController → listen1Desktop.importLocalMusic → localmusic          |
+| 平台账号/歌单          | AuthController / PlatformController → provider / Cookie 适配                 |
+| JSON/Gist              | NavigationController / GithubClient                                          |
+| 设置、主题、语言、代理 | ProfileController；桌面与扩展分别查询对应 MapleSugarCake fork 的正式 Release |
 
 ## 4. 请求、数据与播放约定
 
@@ -91,6 +91,8 @@ MediaService 保留 `.success(fn)`，相关网络入口补充 `.error(fn)`、`.c
 桌面音量均衡默认关闭，使用 `loudness.js` 的 100 ms RMS 有效片段平均电平，`normalized_audio.js` 的完整资产准备与 AudioBuffer 播放。`standard` 最多 1 dB 声道联动限峰，`dynamic` 仅固定增益；共同目标仅在本次运行中下调。主音量在均衡后，音量／静音不能改变测量和均衡增益。`BG_PLAYER:LOUDNESS` 发布关闭、等待、分析中、生效、未均衡或失败状态；临时读取失败重试一次后暂停，明确不可处理才回退。分析、播放实例和测量缓存不进入曲目快照；代次／曲目／实际地址／模式使迟到结果失效。术语见 [GLOSSARY](GLOSSARY.md)。
 
 ## 5. 持久化与界面
+
+两套关于页面共享 ProfileController 的 `about` 信息，名称为 `listen1_maple`、邮箱为 `maplecakeqaq@gmail.com`；桌面主页、Issue 和最新版查询使用 `MapleSugarCake/listen1_desktop`，扩展使用 `MapleSugarCake/listen1_chrome_extension`。当前与最新版只在显示时追加一次 `_maple`，版本数字、manifest、安装身份和 OAuth 回调保持原规则；原作者与设计者署名保留。无正式 Release、请求失败或缺失标签时隐藏最新版一行，不查询上游兜底。
 
 保留 playerlists、favoriteplayerlists、各歌单 ID、`lmplaylist_reserve`、`current-playing`、`player-settings`、theme/language/openSidebar、enable_*、auto_choose_source_list 和 float_window_setting 等键。损坏 JSON 返回空值供调用方兜底，不清空原存储；恢复队列过滤无效项。本地 ID 仍为 `lmtrack_` 加原路径，文件 URL 由桌面层编码。
 
