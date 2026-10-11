@@ -1,10 +1,15 @@
 <!DOCTYPE html>
+<!--
+文件职责：加载共享播放器、平台适配器和 AngularJS 控制器，声明经典与现代两套页面、歌单弹窗及播放视图。
+
+本文件没有需要逐项列出的文件级定义。
+-->
 <html lang="en" ng-app="listenone">
   <head>
     <meta charset="utf-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <!-- The above 3 meta tags *must* come first in the head; any other head content must come *after* these tags-->
+    <!-- 前三个 meta 标签位于 head 起始处，其余头部内容置于其后。 -->
     <meta name="description" content="" />
     <meta name="author" content="" />
     <title ng-bind="document_title">Listen 1</title>
@@ -13,10 +18,13 @@
     <link href="css/notyf_custom.css" rel="stylesheet" />
 
     <link href="css/hotkeys.css" rel="stylesheet" />
+    <link href="css/loudness.css" rel="stylesheet" />
+    <link href="css/track_management.css" rel="stylesheet" />
     <link href="css/icon.css" rel="stylesheet" />
 
     <link href="css/origin.css" rel="stylesheet" id="theme-css" />
     <link href="css/common.css" rel="stylesheet" id="common-css"/>
+    <link href="css/visual-polish.css" rel="stylesheet" />
 
     <link href="images/logo_16.png" rel="shortcut icon" />
     <link href="images/logo_16.png" rel="bookmark" />
@@ -35,6 +43,7 @@
       src="js/vendor/forge_listen1_fork.min.js"
     ></script>
     <script type="text/javascript" src="js/vendor/axios.min.js"></script>
+    <script src="js/request.js"></script>
     <script type="text/javascript" src="js/vendor/notyf.min.js"></script>
     <script type="text/javascript" src="js/vendor/howler.core.min.js"></script>
     <script type="text/javascript" src="js/vendor/hotkeys.min.js"></script>
@@ -42,6 +51,7 @@
     <script type="text/javascript" src="js/vendor/lru-cache.min.js"></script>
 
     <script type="text/javascript" src="js/lowebutil.js"></script>
+    <script src="js/lyrics.js"></script>
     <script type="text/javascript" src="js/github.js"></script>
     <script type="text/javascript" src="js/lastfm.js"></script>
     <script type="text/javascript" src="js/provider/xiami.js"></script>
@@ -55,10 +65,15 @@
     <script type="text/javascript" src="js/provider/localmusic.js"></script>
 
     <script type="text/javascript" src="js/bridge.js"></script>
+    <script type="text/javascript" src="js/loudness.js"></script>
+    <script type="text/javascript" src="js/normalized_audio.js"></script>
     <script type="text/javascript" src="js/player_thread.js"></script>
     <script type="text/javascript" src="js/myplaylist.js"></script>
     <script type="text/javascript" src="js/loweb.js"></script>
     <script type="text/javascript" src="js/l1_player.js"></script>
+    <script type="text/javascript" src="js/loudness_control.js"></script>
+    <script src="js/track_management.js"></script>
+    <script src="js/track_details.js"></script>
     <script type="text/javascript" src="js/app.js"></script>
     <script type="text/javascript" src="js/controller/profile.js"></script>
     <script type="text/javascript" src="js/controller/auth.js"></script>
@@ -79,7 +94,9 @@
 
   <body>
     <div ng-controller="ProfileController" ng-init="initProfile()">
-      <div class="body" ng-if="theme==='white' || theme==='black' ">
+      <track-manager theme="theme"></track-manager>
+      <track-details theme="theme"></track-details>
+      <div class="body" data-layout="classic" ng-if="theme==='white' || theme==='black' ">
         <div
         id="feather-container"
         style="visibility: hidden; position: absolute; width: 0px; height: 0px"
@@ -92,7 +109,7 @@
             <div>
               <div ng-controller="NavigationController">
                 <div class="wrap">
-                  <!-- dialog-->
+                  <!-- 通用操作弹窗。 -->
                   <div class="shadow" ng-hide="is_dialog_hidden==1"></div>
                   <div
                     class="dialog"
@@ -104,7 +121,7 @@
                       ><span class="dialog-close" ng-click="closeDialog()">×</span>
                     </div>
                     <div class="dialog-body">
-                      <!-- choose playlist dialog-->
+                      <!-- 选择目标歌单。 -->
                       <ul class="dialog-playlist" ng-show="dialog_type==0">
                         <li class="detail-add" ng-click="newDialogOption(1)">
                           <img src="images/mycover.jpg" />
@@ -120,7 +137,7 @@
                           <h2>{{ playlist.info.title }}</h2>
                         </li>
                       </ul>
-                      <!-- create new playlist dialog-->
+                      <!-- 创建歌单弹窗。 -->
                       <div class="dialog-newplaylist" ng-show="dialog_type==1">
                         <input
                           class="form-control"
@@ -143,7 +160,7 @@
                           </button>
                         </div>
                       </div>
-                      <!-- edit playlist dialog-->
+                      <!-- 编辑歌单弹窗。 -->
                       <div class="dialog-editplaylist" ng-show="dialog_type==3">
                         <div class="form-group">
                           <label>{{_PLAYLIST_TITLE}}</label>
@@ -201,7 +218,7 @@
                           </button>
                         </div>
                       </div>
-                      <!-- open playlist dialog-->
+                      <!-- 通过链接打开歌单。 -->
                       <div class="dialog-open-url" ng-show="dialog_type==5">
                         <div class="form-group">
                           <label>{{_PLAYLIST_LINK}}</label>
@@ -271,7 +288,7 @@
                           </h2>
                         </li>
                       </ul>
-                      <!-- create new backup dialog-->
+                      <!-- 创建备份弹窗。 -->
                       <div class="dialog-newbackup" ng-show="dialog_type==9">
                         <button
                           class="btn btn-primary confirm-button"
@@ -441,10 +458,7 @@
                             drag-zone-title="i.info.title"
                           >
                             <div class="sidebar-block">
-                              <svg class="feather">
-                                <use href="#disc"></use>
-                              </svg>
-                              <a>{{i.info.title}}</a>
+                              <img class="sidebar-playlist-cover" ng-src="{{i.info.cover_img_url}}" err-src="images/mycover.jpg" alt=""><a title="{{i.info.title}}">{{i.info.title}}</a>
                             </div>
                           </li>
                         </ul>
@@ -465,10 +479,7 @@
                             drag-zone-title="i.info.title"
                           >
                             <div class="sidebar-block">
-                              <svg class="feather">
-                                <use href="#disc"></use>
-                              </svg>
-                              <a>{{i.info.title}}</a>
+                              <img class="sidebar-playlist-cover" ng-src="{{i.info.cover_img_url}}" err-src="images/mycover.jpg" alt=""><a title="{{i.info.title}}">{{i.info.title}}</a>
                             </div>
                           </li>
                         </ul>
@@ -530,7 +541,7 @@
                         infinite-scroll="scrolling()"
                         content-selector="'#playlist-content'"
                       >
-                        <!-- hot playlist window-->
+                        <!-- 热门歌单页面。 -->
                         <div
                           class="page page-hot-playlist"
                           ng-show="current_tag==2 && is_window_hidden==1"
@@ -615,19 +626,36 @@
                                     >
                                   </div>
                                 </li>
-                                <!-- <div class="loading_bottom">
+                                <!-- 停用代码，保留供历史对照：
+<div class="loading_bottom">
                                   <img src="images/loading-1.gif" height="40px" />
                                 </div> -->
                               </ul>
                             </div>
                           </div>
                         </div>
-                        <!-- my platform window-->
+                        <!-- 当前账号的平台歌单页面。 -->
                         <div
                           class="page page-hot-playlist"
                           ng-show="current_tag==6 && is_window_hidden==1"
                           ng-controller="PlatformController"
                         >
+                          <div
+                            class="request-status"
+                            role="status"
+                            ng-if="platformLoading || platformError || (myPlatformUser.platform && !myPlatformPlaylists.length)"
+                          >
+                            <p ng-if="platformLoading">{{_REQUEST_LOADING}}</p>
+                            <p ng-if="platformError">{{platformErrorMessage}}</p>
+                            <button ng-if="platformError" ng-click="loadPlatformPlaylists()">
+                              {{_REQUEST_RETRY}}
+                            </button>
+                            <p
+                              ng-if="myPlatformUser.platform && !platformLoading && !platformError && !myPlatformPlaylists.length"
+                            >
+                              {{_PLATFORM_PLAYLIST_EMPTY}}
+                            </p>
+                          </div>
                           <div class="source-list" ng-show="is_window_hidden==1">
                             <div
                               ng-repeat-start="source in ::platformSourceList"
@@ -674,14 +702,15 @@
                           </div>
                         </div>
     
-                        <!-- content page: 快速搜索 -->
+                        <div class="page" ng-show="current_tag==7 && is_window_hidden==1"><lyric-search-page></lyric-search-page></div>
+<!-- 快速搜索页面。 -->
                         <div
                           class="page"
                           ng-show="current_tag==3 && is_window_hidden==1"
                         >
                           <div class="site-wrapper-innerd">
                             <div class="cover-container">
-                              <!-- Initialize a new AngularJS app and associate it with a module named "instantSearch"-->
+                              <!-- 搜索结果使用外层 InstantSearchController 作用域。 -->
                               <div class="searchbox">
                                 <ul class="source-list">
                                   <li
@@ -778,7 +807,7 @@
                                   </li>
                                   <li
                                     ng-if="searchType===0"
-                                    ng-repeat="song in result"
+                                    ng-repeat="song in result track by (song.source + ':' + song.id)"
                                     ng-class-odd="'odd'"
                                     ng-class-even="'even'"
                                     ng-mouseenter="options=true"
@@ -786,13 +815,14 @@
                                     ng-dblclick="addAndPlay(song)"
                                   >
                                     <div class="title">
-                                      <!-- <a ng-if="song.disabled" class="disabled" ng-click="copyrightNotice()">{{ song.title |limitTo:30}}</a> -->
-                                      <a add-and-play="song"
+                                      <!-- 停用代码，保留供历史对照：
+<a ng-if="song.disabled" class="disabled" ng-click="copyrightNotice()">{{ song.title |limitTo:30}}</a> -->
+                                      <a title="{{song.title}}" add-and-play="song"
                                         ><span
                                           ng-if="isActiveTab('allmusic')"
                                           class="source"
                                           >{{song.sourceName}}</span
-                                        >{{ song.title |limitTo:30}}</a
+                                        >{{ song.title }}</a
                                       >
                                     </div>
                                     <div class="artist">
@@ -807,34 +837,31 @@
                                     </div>
     
                                     <div class="tools">
+                                      <track-actions track="song"></track-actions>
                                       <a
                                         title="{{_ADD_TO_QUEUE}}"
                                         class="detail-add-button"
                                         add-without-play="song"
-                                        ng-show="options"
-                                        ><span class="icon li-add"></span
-                                      ></a>
+
+                                        ><svg class="icon action-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#plus"></use></svg></a>
                                       <a
                                         title="{{_ADD_TO_PLAYLIST}}"
                                         class="detail-fav-button"
-                                        ng-show="options"
+
                                         ng-click="showDialog(0, song)"
-                                        ><span class="icon li-songlist"></span
-                                      ></a>
+                                        ><svg class="icon action-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#plus-square"></use></svg></a>
                                       <a
                                         title="{{_REMOVE_FROM_PLAYLIST}}"
                                         class="detail-delete-button"
                                         ng-click="removeSongFromPlaylist(song, list_id)"
-                                        ng-show="options && is_mine=='1' "
-                                        ><span class="icon li-del"></span
-                                      ></a>
+                                        ng-show="is_mine=='1' "
+                                        ><svg class="icon action-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#trash-2"></use></svg></a>
                                       <a
                                         title="{{_ORIGIN_LINK}}"
                                         class="source-button"
                                         open-url="song.source_url"
-                                        ng-show="options"
-                                        ><span class="icon li-link"></span
-                                      ></a>
+
+                                        ><svg class="icon action-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#link"></use></svg></a>
                                     </div>
                                   </li>
                                   <li
@@ -869,15 +896,16 @@
                                 </ul>
                                 <div
                                   class="search-pagination"
-                                  ng-show="totalpage>1"
+                                  ng-show="curpage > 1 || hasMore"
                                   pagination
                                 ></div>
+                                <search-status></search-status>
                               </div>
                             </div>
                           </div>
                         </div>
     
-                        <!-- content page: 设置 -->
+                        <!-- 设置页面。 -->
                         <div
                           class="page"
                           ng-show="current_tag==4 && is_window_hidden==1"
@@ -1355,7 +1383,8 @@
                                       {{_SHORTCUTS_NOT_SET}}
                                     </div>
                                   </div>
-                                  <!-- <div class="shortcut_table-line">
+                                  <!-- 停用代码，保留供历史对照：
+<div class="shortcut_table-line">
                                     <div class="shortcut_table-function">
                                       静音/取消静音
                                     </div>
@@ -1390,7 +1419,8 @@
                                       {{_SHORTCUTS_NOT_SET}}
                                     </div>
                                   </div>
-                                  <!-- <div class="shortcut_table-line">
+                                  <!-- 停用代码，保留供历史对照：
+<div class="shortcut_table-line">
                                     <div class="shortcut_table-function">
                                       打开/关闭播放列表
                                     </div>
@@ -1449,30 +1479,21 @@
                               </div>
                               <div class="settings-content">
                                 <p>
-                                  Listen 1 {{_HOMEPAGE}}:
+                                  {{about.name}} {{_HOMEPAGE}}:
                                   <a
-                                    open-url="'https://listen1.github.io/listen1/'"
+                                    open-url="about.homepage"
                                   >
-                                    https://listen1.github.io/listen1/
+                                    {{about.homepage}}
                                   </a>
                                 </p>
-                                <p>Listen 1 {{_EMAIL}}: githublisten1@gmail.com</p>
+                                <p>{{about.name}} {{_EMAIL}}: {{about.email}}</p>
                                 <p>
                                   {{_FEEDBACK}}:
-                                  <a
-                                    ng-if="isChrome"
-                                    open-url="'https://github.com/listen1/listen1_chrome_extension/issues'"
-                                    >https://github.com/listen1/listen1_chrome_extension/issues</a
-                                  >
-                                  <a
-                                    ng-if="!isChrome"
-                                    open-url="'https://github.com/listen1/listen1_desktop/issues'"
-                                    >https://github.com/listen1/listen1_desktop/issues</a
-                                  >
+                                  <a open-url="about.issues">{{about.issues}}</a>
                                 </p>
                                 <p>{{_DESIGNER}} ({{_THEME_WHITE}}): iparanoid </p>
                                 <p>{{_DESIGNER}} ({{_THEME_MODERN_BLACK}}, {{_THEME_MODERN_WHITE}}): 814959822, Antion</p>
-                                <p>{{_VERSION}}: v2.33.0 {{_LICENSE_NOTICE}}</p>
+                                <p class="app-version">{{_VERSION}}: v{{currentVersion}} {{_LICENSE_NOTICE}}</p>
                                 <p ng-show='lastestVersion!=""'>
                                   {{_LATEST_VERSION}}: {{lastestVersion}}
                                 </p>
@@ -1480,13 +1501,26 @@
                             </div>
                           </div>
                         </div>
-                        <!-- content page: 登录 -->
+                        <!-- 登录状态页面。 -->
                         <div
                           class="page"
                           ng-show="current_tag==5 && is_window_hidden==1"
                         >
                           <div class="login">
                             <div ng-repeat="source in loginSourceList">
+                              <div
+                                class="request-status"
+                                role="status"
+                                ng-if="authStatus[source].loading || authStatus[source].error"
+                              >
+                                <p ng-if="authStatus[source].loading">{{_REQUEST_LOADING}}</p>
+                                <p ng-if="authStatus[source].error">
+                                  {{_ACCOUNT_UNCONFIRMED}}：{{authStatus[source].message}}
+                                </p>
+                                <button ng-if="authStatus[source].error" ng-click="refreshAuthStatus(source)">
+                                  {{_REQUEST_RETRY}}
+                                </button>
+                              </div>
                               <div ng-show="is_login(source)">
                                 <div class="usercard">
                                   <img ng-src="{{musicAuth[source].avatar}}" />
@@ -1523,7 +1557,7 @@
                           </div>
                         </div>
     
-                        <!-- track list window-->
+                        <!-- 歌单曲目详情。 -->
                         <div class="page">
                           <div
                             class="playlist-detail"
@@ -1682,8 +1716,9 @@
                                 drop-zone-ondrop="onPlaylistSongDrop(list_id, song, arg1, arg2, arg3)"
                               >
                                 <div class="title">
-                                  <!-- <a class="disabled" ng-if="song.disabled" ng-click="copyrightNotice()">{{ song.title }}</a> -->
-                                  <a add-and-play="song">{{ song.title }}</a>
+                                  <!-- 停用代码，保留供历史对照：
+<a class="disabled" ng-if="song.disabled" ng-click="copyrightNotice()">{{ song.title }}</a> -->
+                                  <a title="{{song.title}}" add-and-play="song">{{ song.title }}</a>
                                 </div>
                                 <div class="artist">
                                   <a ng-click="showPlaylist(song.artist_id)"
@@ -1696,39 +1731,36 @@
                                   >
                                 </div>
                                 <div class="tools">
+                                  <track-actions track="song"></track-actions>
                                   <a
                                     title="{{_ADD_TO_QUEUE}}"
                                     class="detail-add-button"
                                     add-without-play="song"
-                                    ng-show="options"
-                                    ><span class="icon li-add"></span
-                                  ></a>
+
+                                    ><svg class="icon action-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#plus"></use></svg></a>
                                   <a
                                     title="{{_ADD_TO_PLAYLIST}}"
                                     class="detail-fav-button"
-                                    ng-show="options"
+
                                     ng-click="showDialog(0, song)"
-                                    ><span class="icon li-songlist"></span
-                                  ></a>
+                                    ><svg class="icon action-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#plus-square"></use></svg></a>
                                   <a
                                     title="{{_REMOVE_FROM_PLAYLIST}}"
                                     class="detail-delete-button"
                                     ng-click="removeSongFromPlaylist(song, list_id)"
-                                    ng-show="options && (is_mine=='1'||is_local) "
-                                    ><span class="icon li-del"></span
-                                  ></a>
+                                    ng-show="(is_mine=='1'||is_local) "
+                                    ><svg class="icon action-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#trash-2"></use></svg></a>
                                   <a
                                     title="{{_ORIGIN_LINK}}"
                                     class="source-button"
                                     open-url="song.source_url"
-                                    ng-show="options && !is_local"
-                                    ><span class="icon li-link"></span
-                                  ></a>
+                                    ng-show="!is_local"
+                                    ><svg class="icon action-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#link"></use></svg></a>
                                 </div>
                               </li>
                             </ul>
                           </div>
-                          <!-- now playing window-->
+                          <!-- 正在播放和歌词视图。 -->
                           <div
                             class="songdetail-wrapper"
                             ng-class="{slidedown: window_type!=='track', coverbg: enableNowplayingCoverBackground}"
@@ -1771,19 +1803,20 @@
                             <div class="playsong-detail">
                               <div class="detail-head">
                                 <div class="detail-head-cover">
-                                  <img
-                                    ng-src="{{ currentPlaying.img_url  }}"
+                                  <img track-cover="currentPlaying"
+                                    ng-src="{{ currentPlaying.img_url | coverImageUrl: '' }}"
                                     err-src="https://y.gtimg.cn/mediastyle/global/img/album_300.png"
                                   />
                                 </div>
                                 <div class="detail-head-title">
-                                  <!--<a title="加入收藏" class="clone" ng-click="showDialog(0, currentPlaying)">收藏</a>
-                    <a open-url="currentPlaying.source_url" title="原始链接" class="link">原始链接</a>-->
+                                  <!-- 停用代码，保留供历史对照：
+<a title="加入收藏" class="clone" ng-click="showDialog(0, currentPlaying)">收藏</a>
+                    <a open-url="currentPlaying.source_url" title="原始链接" class="link">原始链接</a> -->
                                 </div>
                               </div>
                               <div class="detail-songinfo">
                                 <div class="title">
-                                  <h2>{{ currentPlaying.title }}</h2>
+                                  <h2 title="{{currentPlaying.title}}">{{ currentPlaying.title }}</h2>
                                   <span
                                     class="badge"
                                     ng-if="enableNowplayingBitrate && currentPlaying.bitrate !== undefined"
@@ -1812,6 +1845,10 @@
                                       >{{ currentPlaying.album }}</a
                                     >
                                   </div>
+                                </div>
+                                <track-actions class="nowplaying-track-actions" track="currentPlaying" details="false"></track-actions>
+                                <div class="lyric-feedback" ng-if="lyricError" role="status">
+                                  {{lyricError}} <button type="button" ng-click="retryLyrics()">{{_LYRIC_RETRY}}</button>
                                 </div>
                                 <div class="lyric">
                                   <div class="placeholder"></div>
@@ -1867,11 +1904,11 @@
                         ng-if="playlist.length > 0"
                         ng-click="toggleNowPlaying()"
                       >
-                        <img
-                          ng-src="{{ currentPlaying.img_url }}"
+                        <img track-cover="currentPlaying"
+                          ng-src="{{ currentPlaying.img_url | coverImageUrl: '' }}"
                           err-src="https://y.gtimg.cn/mediastyle/global/img/album_300.png"
                         />
-                        <!-- Switching icon when hover -->
+                        <!-- 悬停封面时显示展开或收起图标。 -->
                         <div class="mask">
                           <svg class="feather" ng-if="getCurrentUrl() != '/now_playing'">
                             <use href="#chevrons-up"></use>
@@ -1908,7 +1945,7 @@
                           </a>
                         </div>
     
-                        <div class="title">
+                        <div class="title" title="{{currentPlaying.title}}">
                           <span
                             ng-if="currentPlaying.source === 'xiami'"
                             style="color: orange; font-size: medium"
@@ -1954,6 +1991,7 @@
                           class="icon li-list"
                         ></span>
                       </div>
+                      <div loudness-control></div>
                       <div class="volume-ctrl" volume-wheel="">
                         <span
                           class="icon"
@@ -2044,7 +2082,7 @@
                             class="song-title"
                             ng-class="song.disabled? 'disabled':'' "
                           >
-                            <a play-from-playlist="song"
+                            <a title="{{song.title}}" play-from-playlist="song"
                               ><span
                                 ng-if="song.source === 'xiami'"
                                 style="
@@ -2064,19 +2102,21 @@
                             >
                           </div>
                           <div class="tools">
+                            <track-actions track="song"></track-actions>
                             <span
                               remove-from-playlist="song"
                               data-index="{{$index}}"
                               ng-show="playlist_highlight"
-                              class="icon li-del"
-                            ></span>
+                              class="icon li-del l1-vector-action"
+                            ><svg class="action-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#trash-2"></use></svg></span>
                             <span
                               open-url="song.source_url"
                               ng-show="playlist_highlight"
-                              class="icon li-link"
-                            ></span>
+                              class="icon li-link l1-vector-action"
+                            ><svg class="action-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#link"></use></svg></span>
                           </div>
-                          <!-- <div class="song-time">00:00</div> -->
+                          <!-- 停用代码，保留供历史对照：
+<div class="song-time">00:00</div> -->
                         </li>
                       </ul>
                     </div>
@@ -2087,7 +2127,7 @@
           </div>
         </div>
       </div>
-      <div class="body" ng-if="theme==='white2' || theme==='black2' " >
+      <div class="body" data-layout="modern" ng-if="theme==='white2' || theme==='black2' " >
         <div
         id="feather-container"
         style="visibility: hidden; position: absolute; width: 0px; height: 0px"
@@ -2100,7 +2140,7 @@
           <div >
             <div ng-controller="NavigationController">
               <div class="wrap">
-                <!-- dialog-->
+                <!-- 通用操作弹窗。 -->
                 <div class="shadow" ng-hide="is_dialog_hidden==1"></div>
                 <div
                   class="dialog"
@@ -2112,7 +2152,7 @@
                     ><span class="dialog-close" ng-click="closeDialog()">×</span>
                   </div>
                   <div class="dialog-body">
-                    <!-- choose playlist dialog-->
+                    <!-- 选择目标歌单。 -->
                     <ul class="dialog-playlist" ng-show="dialog_type==0">
                       <li class="detail-add" ng-click="newDialogOption(1)">
                         <img src="images/mycover.jpg" />
@@ -2128,7 +2168,7 @@
                         <h2>{{ playlist.info.title }}</h2>
                       </li>
                     </ul>
-                    <!-- create new playlist dialog-->
+                    <!-- 创建歌单弹窗。 -->
                     <div class="dialog-newplaylist" ng-show="dialog_type==1">
                       <input
                         class="form-control"
@@ -2151,7 +2191,7 @@
                         </button>
                       </div>
                     </div>
-                    <!-- edit playlist dialog-->
+                    <!-- 编辑歌单弹窗。 -->
                     <div class="dialog-editplaylist" ng-show="dialog_type==3">
                       <div class="form-group">
                         <label>{{_PLAYLIST_TITLE}}</label>
@@ -2209,7 +2249,7 @@
                         </button>
                       </div>
                     </div>
-                    <!-- open playlist dialog-->
+                    <!-- 通过链接打开歌单。 -->
                     <div class="dialog-open-url" ng-show="dialog_type==5">
                       <div class="form-group">
                         <label>{{_PLAYLIST_LINK}}</label>
@@ -2279,7 +2319,7 @@
                         </h2>
                       </li>
                     </ul>
-                    <!-- create new backup dialog-->
+                    <!-- 创建备份弹窗。 -->
                     <div class="dialog-newbackup" ng-show="dialog_type==9">
                       <button
                         class="btn btn-primary confirm-button"
@@ -2466,7 +2506,7 @@
                         >
                           <div ng-class="{'opensidebar':isOpenSidebar}" class="sidebar-block">
                             
-                            <a>{{i.info.title}}</a>
+                            <img class="sidebar-playlist-cover" ng-src="{{i.info.cover_img_url}}" err-src="images/mycover.jpg" alt=""><a title="{{i.info.title}}">{{i.info.title}}</a>
                           </div>
                         </li>
                             </ul>
@@ -2487,7 +2527,7 @@
                           drag-zone-title="i.info.title"
                         >
                           <div ng-class="{'opensidebar':isOpenSidebar}" class="sidebar-block">
-                            <a>{{i.info.title}}</a>
+                            <img class="sidebar-playlist-cover" ng-src="{{i.info.cover_img_url}}" err-src="images/mycover.jpg" alt=""><a title="{{i.info.title}}">{{i.info.title}}</a>
                           </div>
                         </li>
                             </ul>
@@ -2500,9 +2540,11 @@
                     <div class="navigation">
                       <div class="backfront">
                         <svg  fill="currentColor" aria-hidden="true" focusable="false" data-prefix="fas" data-icon="angle-left" class="svg-inline--fa fa-angle-left fa-w-8 icon li-back" ng-click="popWindow()" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512"><path fill="currentColor" d="M31.7 239l136-136c9.4-9.4 24.6-9.4 33.9 0l22.6 22.6c9.4 9.4 9.4 24.6 0 33.9L127.9 256l96.4 96.4c9.4 9.4 9.4 24.6 0 33.9L201.7 409c-9.4 9.4-24.6 9.4-33.9 0l-136-136c-9.5-9.4-9.5-24.6-.1-34z"></path></svg>
-                        <!-- <span class="icon li-back" ng-click="popWindow()"></span> -->
+                        <!-- 停用代码，保留供历史对照：
+<span class="icon li-back" ng-click="popWindow()"></span> -->
                         <svg fill="currentColor" aria-hidden="true" focusable="false" data-prefix="fas" data-icon="angle-right" class="svg-inline--fa fa-angle-right fa-w-8 icon li-advance" ng-click="forwardWindow()" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512"><path fill="currentColor" d="M224.3 273l-136 136c-9.4 9.4-24.6 9.4-33.9 0l-22.6-22.6c-9.4-9.4-9.4-24.6 0-33.9l96.4-96.4-96.4-96.4c-9.4-9.4-9.4-24.6 0-33.9L54.3 103c9.4-9.4 24.6-9.4 33.9 0l136 136c9.5 9.4 9.5 24.6.1 34z"></path></svg>
-                        <!-- <span
+                        <!-- 停用代码，保留供历史对照：
+<span
                           class="icon li-advance"
                           ng-click="forwardWindow()"
                         ></span> -->
@@ -2534,7 +2576,8 @@
                         class="settings is-setting"
                       >
                       <svg aria-hidden="true" focusable="false" data-prefix="fas" data-icon="cog" fill="currentColor" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><path fill="currentColor" d="M487.4 315.7l-42.6-24.6c4.3-23.2 4.3-47 0-70.2l42.6-24.6c4.9-2.8 7.1-8.6 5.5-14-11.1-35.6-30-67.8-54.7-94.6-3.8-4.1-10-5.1-14.8-2.3L380.8 110c-17.9-15.4-38.5-27.3-60.8-35.1V25.8c0-5.6-3.9-10.5-9.4-11.7-36.7-8.2-74.3-7.8-109.2 0-5.5 1.2-9.4 6.1-9.4 11.7V75c-22.2 7.9-42.8 19.8-60.8 35.1L88.7 85.5c-4.9-2.8-11-1.9-14.8 2.3-24.7 26.7-43.6 58.9-54.7 94.6-1.7 5.4.6 11.2 5.5 14L67.3 221c-4.3 23.2-4.3 47 0 70.2l-42.6 24.6c-4.9 2.8-7.1 8.6-5.5 14 11.1 35.6 30 67.8 54.7 94.6 3.8 4.1 10 5.1 14.8 2.3l42.6-24.6c17.9 15.4 38.5 27.3 60.8 35.1v49.2c0 5.6 3.9 10.5 9.4 11.7 36.7 8.2 74.3 7.8 109.2 0 5.5-1.2 9.4-6.1 9.4-11.7v-49.2c22.2-7.9 42.8-19.8 60.8-35.1l42.6 24.6c4.9 2.8 11 1.9 14.8-2.3 24.7-26.7 43.6-58.9 54.7-94.6 1.5-5.5-.7-11.3-5.6-14.1zM256 336c-44.1 0-80-35.9-80-80s35.9-80 80-80 80 35.9 80 80-35.9 80-80 80z"></path></svg>
-                        <!-- <span class="icon li-setting"></span> -->
+                        <!-- 停用代码，保留供历史对照：
+<span class="icon li-setting"></span> -->
                       </div>
                       <div ng-if="!isChrome && !isMac" class="window-control">
                         <svg class="icon" window-control="window_min">
@@ -2555,7 +2598,7 @@
                       content-selector="'#playlist-content'"
                     >
                       <div style="height: 64px;"></div>
-                      <!-- hot playlist window-->
+                      <!-- 热门歌单页面。 -->
                       <div
                         class="page page-hot-playlist"
                         ng-show="current_tag==2 && is_window_hidden==1"
@@ -2646,19 +2689,36 @@
                                   >
                                 </div>
                               </li>
-                              <!-- <div class="loading_bottom">
+                              <!-- 停用代码，保留供历史对照：
+<div class="loading_bottom">
                                 <img src="images/loading-1.gif" height="40px" />
                               </div> -->
                             </ul>
                           </div>
                         </div>
                       </div>
-                      <!-- my platform window-->
+                      <!-- 当前账号的平台歌单页面。 -->
                       <div
                         class="page page-hot-playlist"
                         ng-show="current_tag==6 && is_window_hidden==1"
                         ng-controller="PlatformController"
                       >
+                        <div
+                          class="request-status"
+                          role="status"
+                          ng-if="platformLoading || platformError || (myPlatformUser.platform && !myPlatformPlaylists.length)"
+                        >
+                          <p ng-if="platformLoading">{{_REQUEST_LOADING}}</p>
+                          <p ng-if="platformError">{{platformErrorMessage}}</p>
+                          <button ng-if="platformError" ng-click="loadPlatformPlaylists()">
+                            {{_REQUEST_RETRY}}
+                          </button>
+                          <p
+                            ng-if="myPlatformUser.platform && !platformLoading && !platformError && !myPlatformPlaylists.length"
+                          >
+                            {{_PLATFORM_PLAYLIST_EMPTY}}
+                          </p>
+                        </div>
                         <div class="source-list" ng-show="is_window_hidden==1">
                           <div
                             ng-repeat-start="source in ::platformSourceList"
@@ -2710,14 +2770,15 @@
                         </div>
                       </div>
 
-                      <!-- content page: 快速搜索 -->
+                      <div class="page" ng-show="current_tag==7 && is_window_hidden==1"><lyric-search-page></lyric-search-page></div>
+<!-- 快速搜索页面。 -->
                       <div
                         class="page"
                         ng-show="current_tag==3 && is_window_hidden==1"
                       >
                         <div class="site-wrapper-innerd">
                           <div class="cover-container">
-                            <!-- Initialize a new AngularJS app and associate it with a module named "instantSearch"-->
+                            <!-- 搜索结果使用外层 InstantSearchController 作用域。 -->
                             <div ng-class="{footerdef:playlist.length == 0}" class="searchbox">
                               <ul class="source-list">
                                 <li
@@ -2810,13 +2871,15 @@
                               margin-right: 26px;
                           "><span style="opacity: .58;user-select: none;">搜索 <span ng-show="isSearchType(0)">歌曲</span><span ng-show="isSearchType(1)">歌单</span> </span>"{{keywords}}"</h1>
                               <ul ng-class="{'isSearch':isSearchType(1),isSearchOne:isSearchType(0)}" class="detail-songlist">
-                                <!-- <li class="head" ng-if="searchType===0 ">
+                                <!-- 停用代码，保留供历史对照：
+<li class="head" ng-if="searchType===0 ">
                                   <div class="title"><a>{{_SONGS}}</a></div>
                                   <div class="artist"><a>{{_ARTISTS}}</a></div>
                                   <div class="album"><a>{{_ALBUMS}}</a></div>
                                   <div class="tools">{{_OPERATION}}</div>
                                 </li> -->
-                                <!-- <li class="head" ng-if="searchType===1 ">
+                                <!-- 停用代码，保留供历史对照：
+<li class="head" ng-if="searchType===1 ">
                                   <div class="title">
                                     <a>{{_PLAYLIST_TITLE}}</a>
                                   </div>
@@ -2830,26 +2893,27 @@
                                 <li
                                   ng-class="{ 'isSearchType':isSearchType(0),'playing': currentPlaying.id == song.id }"
                                   ng-if="searchType===0"
-                                  ng-repeat="song in result"
+                                  ng-repeat="song in result track by (song.source + ':' + song.id)"
                                   ng-mouseenter="options=true"
                                   ng-mouseleave="options=false"
                                   ng-dblclick="addAndPlay(song)"
                                 >
-                                <img
+                                <img track-cover="song"
                                 add-and-play="song"
-                                        ng-src="{{ song.img_url }}?param=224y224"
+                                        ng-src="{{ song.img_url | coverImageUrl: '224y224' }}"
                                         err-src="https://y.gtimg.cn/mediastyle/global/img/playlist_300.png"
                                       />
                                       <div class="title-and-artist">
                                         <div class="container">
                                   <div class="title">
-                                    <!-- <a ng-if="song.disabled" class="disabled" ng-click="copyrightNotice()">{{ song.title |limitTo:30}}</a> -->
-                                    <a add-and-play="song"
+                                    <!-- 停用代码，保留供历史对照：
+<a ng-if="song.disabled" class="disabled" ng-click="copyrightNotice()">{{ song.title |limitTo:30}}</a> -->
+                                    <a title="{{song.title}}" add-and-play="song"
                                       ><span
                                         ng-if="isActiveTab('allmusic')"
                                         class="source"
                                         >{{song.sourceName}}</span
-                                      >{{ song.title |limitTo:30}}</a
+                                      >{{ song.title }}</a
                                     >
                                   </div>
                                   <div class="artist">
@@ -2866,18 +2930,19 @@
                                   </div>
 
                                   <div class="tools">
+                                    <track-actions track="song"></track-actions>
                                     <a
                                       title="{{_ADD_TO_QUEUE}}"
                                       class="detail-add-button"
                                       add-without-play="song"
-                                      ng-show="options"
+
                                       >
                                       <svg t="1659670196701" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="2178" width="512" height="512"><path d="M938.516167 597.182834 85.483833 597.182834C38.527925 597.182834 0 559.256908 0 511.699001c0-46.955908 37.925926-85.483833 85.483833-85.483833l853.032334 0c46.955908 0 85.483833 37.925926 85.483833 85.483833C1024 559.256908 986.074074 597.182834 938.516167 597.182834L938.516167 597.182834 938.516167 597.182834zM512.300999 1024c-46.955908 0-85.483833-37.925926-85.483833-85.483833L426.817166 85.483833C426.817166 37.925926 464.743092 0 512.300999 0c46.955908 0 85.483833 37.925926 85.483833 85.483833l0 853.634333C597.182834 985.472075 559.256908 1024 512.300999 1024L512.300999 1024 512.300999 1024zM512.300999 1024" fill="currentColor" p-id="2179"></path></svg>
                                       </a>
                                     <a
                                       title="{{_ADD_TO_PLAYLIST}}"
                                       class="detail-fav-button"
-                                      ng-show="options"
+
                                       ng-click="showDialog(0, song)"
                                       >
                                       <svg t="1659670240206" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="2332" width="512" height="512"><path d="M768 768v192h-128v-192h-192v-128h192v-192h128v192h192v128h-192z m64-576H192v640h192v128H64V64h896v320h-128V192z" fill="currentColor" p-id="2333"></path></svg></a>
@@ -2885,7 +2950,7 @@
                                       title="{{_REMOVE_FROM_PLAYLIST}}"
                                       class="detail-delete-button"
                                       ng-click="removeSongFromPlaylist(song, list_id)"
-                                      ng-show="options && is_mine=='1' "
+                                      ng-show="is_mine=='1' "
                                       >
                                       <svg t="1659670296999" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="2486" width="512" height="512"><path d="M895.464448 119.006208 677.967872 119.006208c0 0-32.8448 1.020928-58.648576-26.943488-10.395648-12.050432-27.804672-23.795712-56.4224-24.799232l-41.183232 0-6.280192 0-41.182208 0c-28.618752 1.004544-46.031872 12.749824-56.4224 24.799232-25.807872 27.964416-58.6496 26.943488-58.6496 26.943488L141.682688 119.006208c-13.99296 0-25.33888 11.34592-25.33888 25.33888l0 93.090816c-0.053248 26.927104 26.083328 26.396672 26.083328 26.396672l49.83808 0L192.265216 913.65376c0 0-3.966976 44.084224 40.121344 46.45888l269.31712 0 33.738752 0 30.808064 0.238592 38.500352 0 174.934016 0 24.297472 0 0.782336-0.238592c44.080128-2.374656 40.117248-46.45888 40.117248-46.45888L844.88192 263.832576l49.842176 0c0 0 26.133504 0.530432 26.083328-26.396672l0-93.090816C920.8064 130.353152 909.46048 119.006208 895.464448 119.006208zM430.539776 803.171328c0 17.042432-13.828096 30.865408-30.865408 30.865408-17.042432 0-30.865408-13.824-30.865408-30.865408L368.80896 320.736256c0-17.042432 13.824-30.865408 30.865408-30.865408 17.038336 0 30.865408 13.824 30.865408 30.865408L430.539776 803.171328zM663.436288 803.171328c0 17.042432-13.824 30.865408-30.865408 30.865408-17.038336 0-30.865408-13.824-30.865408-30.865408L601.705472 320.736256c0-17.042432 13.828096-30.865408 30.865408-30.865408 17.041408 0 30.865408 13.824 30.865408 30.865408L663.436288 803.171328z" fill="currentColor" p-id="2487"></path></svg>
                                     </a>
@@ -2893,11 +2958,12 @@
                                       title="{{_ORIGIN_LINK}}"
                                       class="source-button"
                                       open-url="song.source_url"
-                                      ng-show="options"
+
                                       >
                                       <svg t="1659670349346" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="2640" width="512" height="512"><path d="M475.66342293 318.38570027A54.23369707 54.23369707 0 0 1 399.7362464 241.91618667L512 128.56775893a271.16848747 271.16848747 0 0 1 383.43224107 383.43224107L779.372128 625.8907648a54.23369707 54.23369707 0 1 1-76.46951253-76.4695136l113.89076373-113.8907648a162.70109227 162.70109227 0 0 0-229.9508768-229.9508768z m74.8425024 385.60158826A54.23369707 54.23369707 0 1 1 626.97543893 779.372128l-114.43310186 114.43310187A271.16848747 271.16848747 0 0 1 128.56775893 512L243.0008608 399.7362464a54.23369707 54.23369707 0 1 1 77.01185067 74.30016533l-114.97543894 114.43310187a162.70109227 162.70109227 0 0 0 229.9508768 229.9508768z m-135.0419072-17.89712a54.23369707 54.23369707 0 1 1-76.46951253-76.4695136l268.45680213-268.45680213a54.23369707 54.23369707 0 0 1 76.4695136 76.4695136z" fill="currentColor" p-id="2641"></path></svg>
                                       </a>
-                                    <!-- <a
+                                    <!-- 停用代码，保留供历史对照：
+<a
                                       title="{{_ORIGIN_LINK}}"
                                       class="source-button"
                                       ng-click="download_music(song.artist,song.title,song.url)"
@@ -2914,7 +2980,8 @@
                                   ng-class-even="'even'"
                                   class="playlist-result isSearchGeDan"
                                 >
-                                <!-- <a ng-click="showPlaylist(playlist.id)"> -->
+                                <!-- 停用代码，保留供历史对照：
+<a ng-click="showPlaylist(playlist.id)"> -->
                                   <div class="u-cover">
                                   <img
                                       ng-click="showPlaylist(playlist.id)"
@@ -2943,23 +3010,26 @@
                                       </div>
                                   </div>
                                   
-                                  <!-- <div class="album">
+                                  <!-- 停用代码，保留供历史对照：
+<div class="album">
                                     {{ playlist.count |limitTo:30}}
                                   </div> -->
-                                <!-- </a> -->
+                                <!-- 停用代码，保留供历史对照：
+</a> -->
                                 </li>
                               </ul>
                               <div
                                 class="search-pagination"
-                                ng-show="totalpage>1"
+                                ng-show="curpage > 1 || hasMore"
                                 pagination
                               ></div>
+                              <search-status></search-status>
                             </div>
                           </div>
                         </div>
                       </div>
 
-                      <!-- content page: 设置 -->
+                      <!-- 设置页面。 -->
                       <div
                         class="page"
                         ng-show="current_tag==4 && is_window_hidden==1"
@@ -3001,6 +3071,12 @@
                                   ng-click="setLang('ko-KR')"
                                 >
                                   Korean
+                                </button>
+                                <button
+                                  class="language-button"
+                                  ng-click="setLang('pt-BR')"
+                                >
+                                  Brazilian Portuguese
                                 </button>
                               </div>
                             </div>
@@ -3431,7 +3507,8 @@
                                     {{_SHORTCUTS_NOT_SET}}
                                   </div>
                                 </div>
-                                <!-- <div class="shortcut_table-line">
+                                <!-- 停用代码，保留供历史对照：
+<div class="shortcut_table-line">
                                   <div class="shortcut_table-function">
                                     静音/取消静音
                                   </div>
@@ -3466,7 +3543,8 @@
                                     {{_SHORTCUTS_NOT_SET}}
                                   </div>
                                 </div>
-                                <!-- <div class="shortcut_table-line">
+                                <!-- 停用代码，保留供历史对照：
+<div class="shortcut_table-line">
                                   <div class="shortcut_table-function">
                                     打开/关闭播放列表
                                   </div>
@@ -3525,30 +3603,21 @@
                             </div>
                             <div class="settings-content">
                               <p>
-                                Listen 1 {{_HOMEPAGE}}:
+                                {{about.name}} {{_HOMEPAGE}}:
                                 <a
-                                  open-url="'https://listen1.github.io/listen1/'"
+                                  open-url="about.homepage"
                                 >
-                                  https://listen1.github.io/listen1/
+                                  {{about.homepage}}
                                 </a>
                               </p>
-                              <p>Listen 1 {{_EMAIL}}: githublisten1@gmail.com</p>
+                              <p>{{about.name}} {{_EMAIL}}: {{about.email}}</p>
                               <p>
                                 {{_FEEDBACK}}:
-                                <a
-                                  ng-if="isChrome"
-                                  open-url="'https://github.com/listen1/listen1_chrome_extension/issues'"
-                                  >https://github.com/listen1/listen1_chrome_extension/issues</a
-                                >
-                                <a
-                                  ng-if="!isChrome"
-                                  open-url="'https://github.com/listen1/listen1_desktop/issues'"
-                                  >https://github.com/listen1/listen1_desktop/issues</a
-                                >
+                                <a open-url="about.issues">{{about.issues}}</a>
                               </p>
                               <p>{{_DESIGNER}} ({{_THEME_WHITE}}): iparanoid </p>
                               <p>{{_DESIGNER}} ({{_THEME_MODERN_BLACK}}, {{_THEME_MODERN_WHITE}}): 814959822, Antion</p>
-                              <p>{{_VERSION}}: v2.33.0 {{_LICENSE_NOTICE}}</p>
+                              <p class="app-version">{{_VERSION}}: v{{currentVersion}} {{_LICENSE_NOTICE}}</p>
                               <p ng-show='lastestVersion!=""'>
                                 {{_LATEST_VERSION}}: {{lastestVersion}}
                               </p>
@@ -3557,13 +3626,26 @@
                           </div>
                         </div>
                       </div>
-                      <!-- content page: 登录 -->
+                      <!-- 登录状态页面。 -->
                       <div
                         class="page"
                         ng-show="current_tag==5 && is_window_hidden==1"
                       >
                         <div class="login">
                           <div ng-repeat="source in loginSourceList">
+                            <div
+                              class="request-status"
+                              role="status"
+                              ng-if="authStatus[source].loading || authStatus[source].error"
+                            >
+                              <p ng-if="authStatus[source].loading">{{_REQUEST_LOADING}}</p>
+                              <p ng-if="authStatus[source].error">
+                                {{_ACCOUNT_UNCONFIRMED}}：{{authStatus[source].message}}
+                              </p>
+                              <button ng-if="authStatus[source].error" ng-click="refreshAuthStatus(source)">
+                                {{_REQUEST_RETRY}}
+                              </button>
+                            </div>
                             <div ng-show="is_login(source)">
                               <div style="width: 500px;background-color: var(--theme-color-hover);
                               color: var(--theme-color);cursor: default;" class="usercard">
@@ -3588,7 +3670,8 @@
                                 <div class="logoin-icon">
                                 <svg aria-hidden="true" focusable="false" data-prefix="fas" data-icon="sign-in-alt" class="svg-inline--fa fa-sign-in-alt fa-w-16" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><path fill="currentColor" d="M416 448h-84c-6.6 0-12-5.4-12-12v-40c0-6.6 5.4-12 12-12h84c17.7 0 32-14.3 32-32V160c0-17.7-14.3-32-32-32h-84c-6.6 0-12-5.4-12-12V76c0-6.6 5.4-12 12-12h84c53 0 96 43 96 96v192c0 53-43 96-96 96zm-47-201L201 79c-15-15-41-4.5-41 17v96H24c-13.3 0-24 10.7-24 24v96c0 13.3 10.7 24 24 24h136v96c0 21.5 26 32 41 17l168-168c9.3-9.4 9.3-24.6 0-34z"></path></svg>
                               </div>
-                                <!-- <img 
+                                <!-- 停用代码，保留供历史对照：
+<img
                                 err-src="https://y.gtimg.cn/mediastyle/global/img/playlist_300.png"
                                 src="images/placeholder.png" /> -->
 
@@ -3606,7 +3689,7 @@
                         </div>
                       </div>
 
-                      <!-- track list window-->
+                      <!-- 歌单曲目详情。 -->
                       <div class="page">
                         <div
                           class="playlist-detail"
@@ -3746,7 +3829,8 @@
                                 placeholder="{{_SEARCH_PLAYLIST}}"
                               />
                             </div>
-                            <!-- <div class="playlist-search">
+                            <!-- 停用代码，保留供历史对照：
+<div class="playlist-search">
                               <svg class="feather playlist-search-icon">
                                 <use href="#search"></use>
                               </svg>
@@ -3764,7 +3848,8 @@
                                 placeholder="{{_SEARCH_PLAYLIST}}"
                               />
                             </div> -->
-                            <!-- <li class="head">
+                            <!-- 停用代码，保留供历史对照：
+<li class="head">
                               <div class="title">
                                 <a>{{_SONGS + '(' + songs.length + ')'}}</a>
                               </div>
@@ -3787,12 +3872,13 @@
                               drag-zone-type="'application/listen1-song'"
                               drop-zone-ondrop="onPlaylistSongDrop(list_id, song, arg1, arg2, arg3)"
                             >
-                            <img err-src="https://y.gtimg.cn/mediastyle/global/img/playlist_300.png" add-and-play="song" ng-src="{{ song.img_url }}?param=224y224" alt="">
+                            <img track-cover="song" err-src="https://y.gtimg.cn/mediastyle/global/img/playlist_300.png" add-and-play="song" ng-src="{{ song.img_url | coverImageUrl: '224y224' }}" alt="">
                             <div class="title-and-artist">
                             <div class="container">
                               <div class="title">
-                                <!-- <a class="disabled" ng-if="song.disabled" ng-click="copyrightNotice()">{{ song.title }}</a> -->
-                                <a add-and-play="song">{{ song.title }}</a>
+                                <!-- 停用代码，保留供历史对照：
+<a class="disabled" ng-if="song.disabled" ng-click="copyrightNotice()">{{ song.title }}</a> -->
+                                <a title="{{song.title}}" add-and-play="song">{{ song.title }}</a>
                               </div>
                               <div class="artist">
                                 <a ng-click="showPlaylist(song.artist_id)"
@@ -3807,44 +3893,37 @@
                                 >
                               </div>
                               <div class="tools">
+                                <track-actions track="song"></track-actions>
                                 <a
                                   title="{{_ADD_TO_QUEUE}}"
                                   class="detail-add-button"
                                   add-without-play="song"
-                                  ng-show="options"
-                                  >
-                                <svg t="1659628019588" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="1723" width="512" height="512"><path d="M938.516167 597.182834 85.483833 597.182834C38.527925 597.182834 0 559.256908 0 511.699001c0-46.955908 37.925926-85.483833 85.483833-85.483833l853.032334 0c46.955908 0 85.483833 37.925926 85.483833 85.483833C1024 559.256908 986.074074 597.182834 938.516167 597.182834L938.516167 597.182834 938.516167 597.182834zM512.300999 1024c-46.955908 0-85.483833-37.925926-85.483833-85.483833L426.817166 85.483833C426.817166 37.925926 464.743092 0 512.300999 0c46.955908 0 85.483833 37.925926 85.483833 85.483833l0 853.634333C597.182834 985.472075 559.256908 1024 512.300999 1024L512.300999 1024 512.300999 1024zM512.300999 1024" fill="currentColor" p-id="1724"></path></svg>
-                              </a>
+
+                                  ><svg class="icon action-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#plus"></use></svg></a>
                                 <a
                                   title="{{_ADD_TO_PLAYLIST}}"
                                   class="detail-fav-button"
-                                  ng-show="options"
+
                                   ng-click="showDialog(0, song)"
-                                  >
-                                  <svg t="1659628805392" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="6942" width="512" height="512"><path d="M768 768v192h-128v-192h-192v-128h192v-192h128v192h192v128h-192z m64-576H192v640h192v128H64V64h896v320h-128V192z" fill="currentColor" p-id="6943"></path></svg>
-                                  </a>
+                                  ><svg class="icon action-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#plus-square"></use></svg></a>
                                 <a
                                   title="{{_REMOVE_FROM_PLAYLIST}}"
                                   class="detail-delete-button"
                                   ng-click="removeSongFromPlaylist(song, list_id)"
-                                  ng-show="options && (is_mine=='1'||is_local) "
-                                  >
-                                  <svg t="1659670048675" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="2024" width="512" height="512"><path d="M895.464448 119.006208 677.967872 119.006208c0 0-32.8448 1.020928-58.648576-26.943488-10.395648-12.050432-27.804672-23.795712-56.4224-24.799232l-41.183232 0-6.280192 0-41.182208 0c-28.618752 1.004544-46.031872 12.749824-56.4224 24.799232-25.807872 27.964416-58.6496 26.943488-58.6496 26.943488L141.682688 119.006208c-13.99296 0-25.33888 11.34592-25.33888 25.33888l0 93.090816c-0.053248 26.927104 26.083328 26.396672 26.083328 26.396672l49.83808 0L192.265216 913.65376c0 0-3.966976 44.084224 40.121344 46.45888l269.31712 0 33.738752 0 30.808064 0.238592 38.500352 0 174.934016 0 24.297472 0 0.782336-0.238592c44.080128-2.374656 40.117248-46.45888 40.117248-46.45888L844.88192 263.832576l49.842176 0c0 0 26.133504 0.530432 26.083328-26.396672l0-93.090816C920.8064 130.353152 909.46048 119.006208 895.464448 119.006208zM430.539776 803.171328c0 17.042432-13.828096 30.865408-30.865408 30.865408-17.042432 0-30.865408-13.824-30.865408-30.865408L368.80896 320.736256c0-17.042432 13.824-30.865408 30.865408-30.865408 17.038336 0 30.865408 13.824 30.865408 30.865408L430.539776 803.171328zM663.436288 803.171328c0 17.042432-13.824 30.865408-30.865408 30.865408-17.038336 0-30.865408-13.824-30.865408-30.865408L601.705472 320.736256c0-17.042432 13.828096-30.865408 30.865408-30.865408 17.041408 0 30.865408 13.824 30.865408 30.865408L663.436288 803.171328z" fill="currentColor" p-id="2025"></path></svg>
-                                  </a>
+                                  ng-show="(is_mine=='1'||is_local) "
+                                  ><svg class="icon action-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#trash-2"></use></svg></a>
                                 <a
                                   title="{{_ORIGIN_LINK}}"
                                   class="source-button"
                                   open-url="song.source_url"
-                                  ng-show="options && !is_local"
-                                  >
-                                  <svg t="1659628952356" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="1783" width="512" height="512"><path d="M475.66342293 318.38570027A54.23369707 54.23369707 0 0 1 399.7362464 241.91618667L512 128.56775893a271.16848747 271.16848747 0 0 1 383.43224107 383.43224107L779.372128 625.8907648a54.23369707 54.23369707 0 1 1-76.46951253-76.4695136l113.89076373-113.8907648a162.70109227 162.70109227 0 0 0-229.9508768-229.9508768z m74.8425024 385.60158826A54.23369707 54.23369707 0 1 1 626.97543893 779.372128l-114.43310186 114.43310187A271.16848747 271.16848747 0 0 1 128.56775893 512L243.0008608 399.7362464a54.23369707 54.23369707 0 1 1 77.01185067 74.30016533l-114.97543894 114.43310187a162.70109227 162.70109227 0 0 0 229.9508768 229.9508768z m-135.0419072-17.89712a54.23369707 54.23369707 0 1 1-76.46951253-76.4695136l268.45680213-268.45680213a54.23369707 54.23369707 0 0 1 76.4695136 76.4695136z" fill="currentColor" p-id="1784"></path></svg>
-                                </a>
+                                  ng-show="!is_local"
+                                  ><svg class="icon action-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#link"></use></svg></a>
                               </div>
                               <div class="time">{{song.duration}}</div>
                             </li>
                           </ul>
                         </div>
-                        <!-- now playing window-->
+                        <!-- 正在播放和歌词视图。 -->
                       
                       </div>
                     </div>
@@ -3891,16 +3970,16 @@
                       <div>
                       <div class="detail-head-cover">
                         <div ng-if="window_type=='track'"  class="covershadow" style="background-image:url({{currentPlaying.img_url}}?param=224y224);opacity: 1;z-index: -1;"></div>
-                        <img
+                        <img track-cover="currentPlaying"
                       
                         id="trackbackground" 
-                          ng-src="{{ currentPlaying.img_url.replace('224y224','1024y1024').replace('/120/','/1024/').replace('/T002R300x300M','/T002R800x800M') }}?param=1024y1024"
+                          ng-src="{{ currentPlaying.img_url.replace('224y224','1024y1024').replace('/120/','/1024/').replace('/T002R300x300M','/T002R800x800M') | coverImageUrl: '1024y1024' }}"
                           err-src="https://y.gtimg.cn/mediastyle/global/img/album_300.png"
                         />
                       </div>
                       <div class="detail-head-title">
                         <div class="title">
-                          <h2>{{ currentPlaying.title }}</h2>
+                          <h2 title="{{currentPlaying.title}}">{{ currentPlaying.title }}</h2>
                           <span
                             class="badge"
                             ng-if="enableNowplayingBitrate && currentPlaying.bitrate !== undefined"
@@ -3930,12 +4009,16 @@
                           </div>
                         </div>
                       </div>
-                        <!-- <a title="加入收藏" class="clone" ng-click="showDialog(0, currentPlaying)">收藏</a>
+                        <!-- 停用代码，保留供历史对照：
+<a title="加入收藏" class="clone" ng-click="showDialog(0, currentPlaying)">收藏</a>
           <a open-url="currentPlaying.source_url" title="原始链接" class="link">原始链接</a> -->
                       </div>
                     </div>
                     <div class="detail-songinfo">
-                      
+
+                      <div class="lyric-feedback" ng-if="lyricError" role="status">
+                        {{lyricError}} <button type="button" ng-click="retryLyrics()">{{_LYRIC_RETRY}}</button>
+                      </div>
                       <div class="lyric">
                         <div class="placeholder"></div>
                         <p
@@ -3967,7 +4050,7 @@
                     
                     <div class="detail" ng-if="playlist.length > 0">
 
-                      <div class="title">
+                      <div class="title" title="{{currentPlaying.title}}">
                         <span
                           ng-if="currentPlaying.source === 'xiami'"
                           style="color: orange; font-size: medium"
@@ -3994,7 +4077,8 @@
                       class="cover"
                       ng-if="playlist.length > 0"
                     >
-                    <!-- <div class="logo-banner" ng-if="playlist.length == 0">
+                    <!-- 停用代码，保留供历史对照：
+<div class="logo-banner" ng-if="playlist.length == 0">
                       <svg
                         class="logo"
                         xmlns="http://www.w3.org/2000/svg"
@@ -4024,9 +4108,9 @@
                         c:song.stageId === getSongIdByIndex(currentIndex+1),
                         def:song.stageId === getSongIdByIndex(currentIndex+2)||song.stageId === getSongIdByIndex(currentIndex-2)}" class="hid"
                             id="song{{ song.id }}" ng-repeat="song in staged_playlist track by song.stageId" draggable="true">
-                    <img
+                    <img track-cover="song"
                     err-src="https://y.gtimg.cn/mediastyle/global/img/album_300.png"
-                    ng-src="{{song.img_url.replace('/120/','/300/')}}?param=300y300" alt="">
+                    ng-src="{{ song.img_url.replace('/120/','/300/') | coverImageUrl: '300y300' }}" alt="">
                     </li>
                     </ul>
                     <div class="cover-list">
@@ -4045,7 +4129,8 @@
                     </span>
                     </div>
                     
-                      <!-- <img
+                      <!-- 停用代码，保留供历史对照：
+<img
                       play-pause-toggle=""
                         ng-src="{{ currentPlaying.img_url.replace('/120/','/500/').replace('/T002R300x300M','/T002R500x500M')  }}?param=512y512"
                         err-src="https://y.gtimg.cn/mediastyle/global/img/album_300.png"
@@ -4064,7 +4149,7 @@
                       </div>    
                     </div>
                   
-                    <div ng-show="playlist.length != 0" class="footertime">
+                    <div ng-show="playlist.length != 0" class="footertime" tabindex="0">
                       <div class="bottomprogressbar">    
                         <div class="playbar">
                           <span class="icon">
@@ -4086,6 +4171,7 @@
                             </div>
                           </div>
                         </div>
+                        <div loudness-control></div>
                         <div class="volume-ctrl" volume-wheel="">
                           <span
                             class="icon"
@@ -4117,6 +4203,8 @@
                   <div class="right-control">
                     
                     <div class="ctrl">
+<track-actions class="nowplaying-track-actions" track="currentPlaying" details="false"></track-actions>
+
                       <a
                         ng-click="showDialog(0, currentPlaying)"
                         title="{{_ADD_TO_PLAYLIST}}"
@@ -4232,7 +4320,7 @@
                           class="song-title"
                           ng-class="song.disabled? 'disabled':'' "
                         >
-                          <a play-from-playlist="song"
+                          <a title="{{song.title}}" play-from-playlist="song"
                             ><span
                               ng-if="song.source === 'xiami'"
                               style="
@@ -4252,19 +4340,21 @@
                           >
                         </div>
                         <div class="tools">
+                          <track-actions track="song"></track-actions>
                           <span
                             remove-from-playlist="song"
                             data-index="{{$index}}"
                             ng-show="playlist_highlight"
-                            class="icon li-del"
-                          ></span>
+                            class="icon li-del l1-vector-action"
+                          ><svg class="action-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#trash-2"></use></svg></span>
                           <span
                             open-url="song.source_url"
                             ng-show="playlist_highlight"
-                            class="icon li-link"
-                          ></span>
+                            class="icon li-link l1-vector-action"
+                          ><svg class="action-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#link"></use></svg></span>
                         </div>
-                        <!-- <div class="song-time">00:00</div> -->
+                        <!-- 停用代码，保留供历史对照：
+<div class="song-time">00:00</div> -->
                       </li>
                     </ul>
                   </div>
@@ -4277,7 +4367,8 @@
       </div>
   </div>
   </body>
-  <!-- <script type="text/javascript">
+  <!-- 停用代码，保留供历史对照：
+<script type="text/javascript">
     window.onload=function(){
       let li = document.querySelectorAll(".footer .cover li")
       for(let i=0;i<li.length-1;i++){

@@ -1,0 +1,389 @@
+/* Theme colors remain in the four existing theme sheets. Component rules are
+   loaded after common/common2 so badge and generic SVG rules cannot leak in. */
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+.body {
+  --action-icon-stroke: 1.5;
+}
+.body[data-layout='modern'] {
+  --action-icon-stroke: 2;
+}
+svg.action-icon {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: var(--action-icon-stroke, 1.5);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex-shrink: 0;
+}
+.l1-vector-action::before {
+  content: none;
+}
+button,
+.l1-button,
+.navigation input,
+.page .settings input,
+.page .settings select {
+  transition:
+    background-color 140ms,
+    border-color 140ms,
+    color 140ms;
+}
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--important-color);
+  outline-offset: 2px;
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.page .settings-content {
+  line-height: 1.6;
+}
+.page .settings-content .language-button,
+.page .settings-content .theme-button,
+.page .settings-content label.upload-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  box-sizing: border-box;
+  padding: 6px 10px;
+  margin: 0 6px 8px 0;
+  border-radius: var(--default-border-radius);
+}
+.main .content,
+ul.detail-songlist li .title,
+ul.detail-songlist li .container,
+ul.detail-songlist li .title-and-artist,
+ul.detail-songlist li .artist,
+ul.detail-songlist li .album,
+ul.detail-songlist li .artist {
+  min-width: 0;
+}
+ul.detail-songlist li .album {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+body ul.detail-songlist li .tools:has(track-actions .track-actions) {
+  flex: 0 0 192px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  white-space: nowrap;
+}
+body .footer .menu ul.menu-list li .tools:has(track-actions .track-actions) {
+  flex: 0 0 140px;
+  width: 140px;
+  justify-content: flex-end;
+  gap: 4px;
+}
+body .detail-songlist .tools .track-actions,
+body .menu-list .tools .track-actions,
+.track-actions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 4px;
+  width: auto;
+  height: auto;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  color: inherit;
+  font-size: inherit;
+  white-space: nowrap;
+}
+body .track-actions a.icon,
+body .tools .track-actions a.icon,
+body ul.detail-songlist li .tools > a,
+body ul.detail-songlist li .tools > .icon,
+body .footer .menu ul.menu-list li .tools > .icon {
+  display: inline-flex;
+  flex: 0 0 24px;
+  width: 24px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: max(4px, var(--default-border-radius));
+  color: color-mix(
+    in srgb,
+    var(--icon-default-color) 80%,
+    var(--text-default-color)
+  );
+  background: transparent;
+}
+body .track-actions a.icon:hover,
+body .tools > a:hover,
+body .tools > .icon:hover {
+  color: var(--important-color);
+  background: var(--button-hover-background-color);
+}
+body [data-layout='modern'] ul.detail-songlist li.playing .tools a.icon,
+body [data-layout='modern'] ul.detail-songlist li.playing .tools > a {
+  color: var(--important-color);
+}
+body .tools svg.action-icon,
+body ul.detail-songlist li .tools svg.action-icon,
+body .tools .icon svg.action-icon {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  color: inherit;
+}
+[data-layout='modern'] .footer .cover .cover-list span.a,
+[data-layout='modern'] .footer .cover .cover-list span.c {
+  opacity: 1;
+  background-color: var(--white--black-background);
+}
+body .detail-songlist li track-actions,
+body .menu-list li track-actions {
+  visibility: visible;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms;
+}
+body .detail-songlist li:hover track-actions,
+body .detail-songlist li:focus-within track-actions,
+body .menu-list li:hover track-actions,
+body .menu-list li:focus-within track-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+body .detail-songlist li .tools > a,
+body .menu-list li .tools > .icon {
+  opacity: 0;
+  pointer-events: none;
+}
+body .detail-songlist li:hover .tools > a,
+body .detail-songlist li:focus-within .tools > a,
+body .menu-list li:hover .tools > .icon,
+body .menu-list li:focus-within .tools > .icon {
+  opacity: 1;
+  pointer-events: auto;
+}
+body .detail-songlist li .title > a {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nowplaying-track-actions svg.action-icon {
+  width: 20px;
+  height: 20px;
+}
+body .nowplaying-track-actions a.icon {
+  width: 32px;
+  height: 32px;
+  flex-basis: 32px;
+}
+/* Footer SVGs use their own boxes, without the text baseline's descender gap. */
+[data-layout='modern'] .footer .right-control .ctrl a,
+[data-layout='modern'] .footer .right-control .lyric-toggle,
+[data-layout='modern'] .footer .right-control .translate-switch.slidedown,
+[data-layout='modern'] .footer .right-control .mask {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  box-sizing: border-box;
+  padding: 0;
+  line-height: 1;
+}
+[data-layout='modern'] .footer .right-control .ctrl > a > .icon,
+[data-layout='modern'] .footer .right-control .lyric-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+[data-layout='modern'] .footer .right-control svg {
+  display: block;
+  flex-shrink: 0;
+}
+[data-layout='modern'] .footer .nowplaying-track-actions a.icon {
+  color: inherit;
+}
+/* Four horizontal strokes need a larger canvas to match the solid icons. */
+[data-layout='modern'] .footer .nowplaying-track-actions .manage-lyrics svg {
+  width: 24px;
+  height: 24px;
+}
+/* The chevron path sits slightly above the center of its viewBox. */
+[data-layout='modern'] .footer .right-control .mask svg {
+  transform: translateY(1px);
+}
+.sidebar-playlist-cover {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  object-fit: cover;
+  border-radius: max(3px, var(--default-border-radius));
+}
+.sidebar .sidebar-block > a {
+  min-width: 0;
+}
+[data-layout='modern'] .sidebar .sidebar-scroll-content {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+[data-layout='modern'] .sidebar ul li {
+  padding: 2px 6px;
+}
+[data-layout='modern'] .sidebar ul li .sidebar-block {
+  gap: 10px;
+  padding: 6px 10px;
+}
+[data-layout='modern'] .sidebar ul li .sidebar-block > div,
+[data-layout='modern'] .sidebar .sidebar-block .icon {
+  margin-right: 0;
+  flex-shrink: 0;
+}
+[data-layout='modern'] .sidebar .sidebar-block svg {
+  flex: 0 0 18px;
+}
+[data-layout='modern'] .sidebar-content:not(.opensidebar) .sidebar-block {
+  justify-content: center;
+  padding: 8px 0;
+  gap: 0;
+  min-width: 0;
+}
+[data-layout='modern'] .sidebar-content:not(.opensidebar) .sidebar-block a {
+  display: none;
+}
+[data-layout='modern'] .sidebar-content:not(.opensidebar) .logo-content {
+  margin: 10px 6px 0;
+  justify-content: center;
+}
+[data-layout='modern'] .sidebar-content:not(.opensidebar) .logo-svg {
+  padding: 10px 0;
+}
+[data-layout='modern'] .sidebar-content:not(.opensidebar) .logo-title {
+  display: none;
+}
+[data-layout='modern'] .sidebar-content:not(.opensidebar) .menu-title {
+  justify-content: center;
+  padding: 0;
+  margin: 8px 6px;
+}
+[data-layout='modern'] .sidebar-content:not(.opensidebar) .menu-title .title {
+  display: none;
+}
+.track-manager-dialog {
+  border-radius: max(4px, var(--default-border-radius));
+  border: 1px solid var(--line-default-color);
+}
+body .track-manager-dialog .track-manager-close {
+  min-width: 32px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  flex: 0 0 32px;
+  background: transparent;
+  border: 0;
+  border-radius: var(--default-border-radius);
+  color: var(--text-default-color);
+  font-size: 22px;
+  line-height: 1;
+}
+.track-manager-dialog .track-manager-close:hover {
+  background: var(--button-hover-background-color);
+  color: var(--text-default-color);
+}
+.local-cover-editor {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  margin: 20px 0;
+}
+.local-cover-preview {
+  width: 96px;
+  height: 96px;
+  flex: 0 0 96px;
+  object-fit: cover;
+  border-radius: max(4px, var(--default-border-radius));
+  border: 1px solid var(--line-default-color);
+}
+.local-cover-editor p {
+  margin: 8px 0;
+  overflow-wrap: anywhere;
+}
+.local-cover-editor small,
+.track-details-read small {
+  color: color-mix(
+    in srgb,
+    var(--text-subtitle-color) 60%,
+    var(--text-default-color)
+  );
+  line-height: 1.6;
+}
+.track-details-fields {
+  margin: 20px 0 0;
+  user-select: text;
+}
+.track-details-fields > div {
+  display: grid;
+  grid-template-columns: 128px minmax(0, 1fr);
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line-default-color);
+  line-height: 1.6;
+}
+.track-details-fields dt {
+  color: color-mix(
+    in srgb,
+    var(--text-subtitle-color) 60%,
+    var(--text-default-color)
+  );
+  font-size: 13px;
+}
+.track-details-fields dd {
+  margin: 0;
+  min-height: 20px;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.track-details-read {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-top: 20px;
+}
+.track-details-read p {
+  flex-basis: 100%;
+  margin: 0;
+}
+@media (max-width: 1000px) {
+  .footer .right-control .ctrl a {
+    margin-right: 12px;
+  }
+  [data-layout='modern'] ul.detail-songlist li .album {
+    font-size: 14px;
+  }
+}
+@media (max-width: 560px) {
+  .track-details-fields > div {
+    grid-template-columns: 96px minmax(0, 1fr);
+    gap: 12px;
+  }
+}

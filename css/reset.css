@@ -1,3 +1,8 @@
+/*
+ * 文件职责：统一基础元素的间距、字体、列表、表格和引用样式；当前主页面未直接加载此文件。
+ *
+ * 本文件不定义全局 CSS 自定义属性；选择器按页面功能分区组织。
+ */
 html,
 body,
 span,
@@ -81,7 +86,7 @@ ul {
   list-style: none;
 }
 
-/* tables still need 'cellspacing="0"' in the markup */
+/* 表格继续使用零单元格间距的布局约定。 */
 table {
   border-collapse: separate;
   border-spacing: 0;

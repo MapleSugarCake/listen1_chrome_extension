@@ -1,3 +1,9 @@
+/*
+ * 文件职责：保留早期播放器的精灵图按钮、播放栏、歌单、歌词及弹窗样式；当前主页面未直接加载此文件。
+ *
+ * 本文件不定义全局 CSS 自定义属性；选择器按页面功能分区组织。
+ */
+/* 通用链接与弹窗遮罩。 */
 a {
   cursor: pointer;
 }
@@ -53,10 +59,12 @@ a {
   background-color: #333;
 }
 
-/*.masthead {
+/* 停用样式，保留供历史对照：
+.masthead {
     z-index: 999;
-}*/
+} */
 
+/* 旧页头、页脚与滚动容器。 */
 .masthead,
 .mastfoot {
   margin: 0 auto;
@@ -102,15 +110,17 @@ a {
 .site-wrapper-innerd {
   overflow-y: scroll;
   margin-top: 90px;
-  /* uncomment the line below will hide the scroll bar */
-  /*padding-right: 17px;*/
+  /* 下方停用的右内边距曾用于遮挡滚动条。 */
+  /* 停用样式，保留供历史对照：
+padding-right: 17px; */
   box-sizing: content-box;
   width: 100%;
   background-color: #333;
 }
 
 .searchbox {
-  /*    margin-top: 100px;*/
+  /* 停用样式，保留供历史对照：
+margin-top: 100px; */
 }
 
 .searchbox .nav {
@@ -139,6 +149,7 @@ a {
   width: 400px;
 }
 
+/* 歌单封面网格与快捷播放。 */
 .playlist-covers {
   margin-bottom: 0px;
 }
@@ -208,6 +219,7 @@ a {
   margin: 7px 0 0 0;
 }
 
+/* 旧式播放栏及精灵图控制按钮。 */
 .m-playbar {
   position: absolute;
   zoom: 1;
@@ -293,7 +305,7 @@ a {
 }
 
 .m-playbar .btns .next {
-  /* pause icon distance adjust from 36 to 38 */
+  /* 沿用精灵图横向偏移 38 像素，使下一首图标对齐。 */
   background-position: -38px 0px;
 }
 
@@ -535,6 +547,7 @@ i {
   margin-right: 5px;
 }
 
+/* 播放队列、歌词与音量浮层。 */
 .m-playbar .menu {
   position: absolute;
   bottom: 90px;
@@ -695,7 +708,8 @@ li {
 }
 
 .dbimport {
-  /*margin-top: 100px;*/
+  /* 停用样式，保留供历史对照：
+margin-top: 100px; */
 }
 
 .form-signin {
@@ -720,6 +734,7 @@ li {
   margin-top: 10px;
 }
 
+/* 歌单和歌曲详情布局。 */
 .playlist-detail {
   position: absolute;
   text-align: left;
@@ -735,7 +750,8 @@ li {
 
 .playlist-detail .detail-head-cover {
   height: 180px;
-  /*    width: 225px;*/
+  /* 停用样式，保留供历史对照：
+width: 225px; */
   float: left;
   margin: 10px;
 }
@@ -861,7 +877,7 @@ li {
   margin-left: 30px;
 }
 .playsong-detail .lyric {
-  color: #999; /* IE8 proofing */
+  color: #999; /* 为不支持后续颜色表达式的旧浏览器保留回退值。 */
   color: rgba(255, 255, 255, 0.5);
   text-align: left;
   width: 100%;
@@ -884,6 +900,7 @@ li {
   color: #ffffff;
 }
 
+/* 歌曲列表列宽与操作按钮。 */
 .detail-songlist {
   padding-left: 0px;
   text-align: left;
@@ -988,9 +1005,10 @@ li {
   cursor: pointer;
 }
 
-/*.playlist-detail .detail-songlist li:hover {
+/* 停用样式，保留供历史对照：
+.playlist-detail .detail-songlist li:hover {
     background-color: #999999;
-}*/
+} */
 
 .playlist-detail .btn {
   width: 88px;
@@ -1014,6 +1032,7 @@ li {
   color: #ffffff;
 }
 
+/* 歌单选择、合并和备份对话框。 */
 .dialog-playlist {
   padding-left: 0px;
   text-align: left;
@@ -1130,6 +1149,7 @@ li {
   margin-right: 48px;
 }
 
+/* 来源切换与设置页面。 */
 .source-list {
   position: absolute;
   right: -32px;
