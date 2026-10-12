@@ -4,7 +4,9 @@
 
 [![Software License](https://img.shields.io/badge/license-MIT-brightgreen.svg)](LICENSE)
 
-[English Version](https://github.com/listen1/listen1_chrome_extension/blob/master/README_EN.md)
+[English Version](https://github.com/MapleSugarCake/listen1_maple_extension/blob/master/README_EN.md)
+
+仓库：[listen1_maple_extension](https://github.com/MapleSugarCake/listen1_maple_extension)；桌面版：[listen1_maple_desktop](https://github.com/MapleSugarCake/listen1_maple_desktop)。
 
 ## 缘起
 
@@ -24,7 +26,7 @@
 
 搜歌，听歌，就用 `Listen1`。
 
-[![imgur](https://i.imgur.com/dIVFtor.gif)]()
+[![imgur](https://i.imgur.com/dIVFtor.gif)](<>)
 
 V2.9.0 新特性：自动切换播放源(Beta)
 
@@ -56,7 +58,7 @@ V2.9.0 新特性：自动切换播放源(Beta)
 
 1. 将根目录下 manifest_firefox.json 替换 manifest.json
 
-2. `cd listen1_chrome_extension`
+2. `cd listen1_maple_extension`
 
 3. `zip -r ../listen1.xpi *`, 完成打包 xpi 文件
 

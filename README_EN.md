@@ -4,6 +4,8 @@
 
 [![Software License](https://img.shields.io/badge/license-MIT-brightgreen.svg)](LICENSE)
 
+Repository: [listen1_maple_extension](https://github.com/MapleSugarCake/listen1_maple_extension); desktop: [listen1_maple_desktop](https://github.com/MapleSugarCake/listen1_maple_desktop).
+
 ## One for all free music in China
 
 When I found many songs are unavailable because copyright issue, I realized there's something I should do.

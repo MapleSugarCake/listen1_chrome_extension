@@ -15,8 +15,8 @@ angular.module('listenone').controller('ProfileController', [
    */
   ($scope) => {
     const repository = isElectron()
-      ? 'listen1_desktop'
-      : 'listen1_chrome_extension';
+      ? 'listen1_maple_desktop'
+      : 'listen1_maple_extension';
     const repositoryUrl = `https://github.com/MapleSugarCake/${repository}`;
     $scope.about = {
       name: 'listen1_maple',

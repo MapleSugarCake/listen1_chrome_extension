@@ -33,7 +33,7 @@ controller → l1Player → bridge → threadPlayer / Howler
 | `css/`、`images/`、`fonts/`、`i18n/`               | 样式、图片字体、六份翻译                                 |
 | `scripts/`、`test/`、`config/`                     | vendor 生成、行为测试、迁移后保留的 ESLint 规则          |
 
-本包依赖均位于 devDependencies，其中包含生成静态库所需的精确版本。正常启动不依赖 node_modules 或在线 CDN。`vendor:check` 比较实际文件、许可证、版本和哈希，定制 forge 单独保留并检验原始哈希；详见 [vendor 指南](vendor/README.md)。包元数据 `main: index.js` 不是实际启动入口。
+仓库和开发包名称为 `listen1_maple_extension`，作为桌面子模块时保留 `app/listen1_chrome_extension` 目录。本包依赖均位于 devDependencies，其中包含生成静态库所需的精确版本。正常启动不依赖 node_modules 或在线 CDN。`vendor:check` 比较实际文件、许可证、版本和哈希，定制 forge 单独保留并检验原始哈希；详见 [vendor 指南](vendor/README.md)。包元数据 `main: index.js` 不是实际启动入口。
 
 ## 3. 业务调用关系
 
@@ -92,7 +92,7 @@ MediaService 保留 `.success(fn)`，相关网络入口补充 `.error(fn)`、`.c
 
 ## 5. 持久化与界面
 
-两套关于页面共享 ProfileController 的 `about` 信息，名称为 `listen1_maple`、邮箱为 `maplecakeqaq@gmail.com`；桌面主页、Issue 和最新版查询使用 `MapleSugarCake/listen1_desktop`，扩展使用 `MapleSugarCake/listen1_chrome_extension`。当前与最新版只在显示时追加一次 `_maple`，版本数字、manifest、安装身份和 OAuth 回调保持原规则；原作者与设计者署名保留。无正式 Release、请求失败或缺失标签时隐藏最新版一行，不查询上游兜底。
+两套关于页面共享 ProfileController 的 `about` 信息，名称为 `listen1_maple`、邮箱为 `maplecakeqaq@gmail.com`；桌面主页、Issue 和最新版查询使用 `MapleSugarCake/listen1_maple_desktop`，扩展使用 `MapleSugarCake/listen1_maple_extension`。当前与最新版只在显示时追加一次 `_maple`，版本数字、manifest、安装身份和 OAuth 回调保持原规则；原作者与设计者署名保留。无正式 Release、请求失败或缺失标签时隐藏最新版一行，不查询上游兜底。
 
 保留 playerlists、favoriteplayerlists、各歌单 ID、`lmplaylist_reserve`、`current-playing`、`player-settings`、theme/language/openSidebar、enable_*、auto_choose_source_list 和 float_window_setting 等键。损坏 JSON 返回空值供调用方兜底，不清空原存储；恢复队列过滤无效项。本地 ID 仍为 `lmtrack_` 加原路径，文件 URL 由桌面层编码。
 
@@ -108,7 +108,7 @@ MediaService 保留 `.success(fn)`，相关网络入口补充 `.error(fn)`、`.c
 
 `loudness-settings` 独立保存 `{ enabled, mode }`，避免旧控制器保存 `player-settings` 时覆盖均衡设置。RMS 摘要最多 128 个，仅在本次页面运行中保留；解码缓冲仅保留当前资产。两套布局使用同一个 `loudness-control` 指令，按钮在 `volume-wheel` 容器之外；图标为实心三滑杆，默认跟随同栏颜色，启用使用主题强调色。鼠标离开弹窗及控制区整组 200 毫秒后关闭，现代布局恢复时长；组内往返取消关闭，原生模式选择框打开时暂缓关闭。键盘焦点显现控制区，Tab 离组关闭，Esc 关闭并回到按钮；鼠标点击留下的焦点不阻止收起。主题重建从核心获取真实状态，销毁时清理计时器及状态、鼠标、焦点、键盘、外部点击和语言订阅。浏览器扩展保持默认 Howler 行为，此次桌面专用桥不暴露给扩展。
 
-JSON 备份遍历 localStorage，恢复按键合并，不先清空；Gist 只显式排除部分键，不保证脱敏。认证键如 githubOauthAccessKey、lastfmtoken、lastfmsession 的实际值不能进入日志或测试。备份不包含原音频、electron-store 或完整 Cookie。
+JSON 备份遍历 localStorage，恢复按键合并，不先清空；Gist 只显式排除部分键，不保证脱敏。新生成的 Gist 摘要和描述链接按桌面／扩展环境指向对应 fork，保留 `updated by Listen1` 识别前缀及既有备份文件名。认证键如 githubOauthAccessKey、lastfmtoken、lastfmsession 的实际值不能进入日志或测试。备份不包含原音频、electron-store 或完整 Cookie。
 
 封面副本位于桌面 userData 的 `covers`，JSON/Gist 仅含 UUID 和原文件名等引用；跨设备恢复需同时迁移该目录。既有音频、歌曲/歌单 ID 和存储键不迁移。
 

@@ -63,7 +63,9 @@ async function profile(desktop, release) {
 
 for (const desktop of [true, false]) {
   const environment = desktop ? 'desktop' : 'extension';
-  const repository = desktop ? 'listen1_desktop' : 'listen1_chrome_extension';
+  const repository = desktop
+    ? 'listen1_maple_desktop'
+    : 'listen1_maple_extension';
   const homepage = `https://github.com/MapleSugarCake/${repository}`;
 
   test(`${environment} uses its fork for release queries and about links`, async () => {

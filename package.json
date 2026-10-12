@@ -1,5 +1,5 @@
 {
-  "name": "listen1_chrome_extension",
+  "name": "listen1_maple_extension",
   "version": "2.35.1",
   "description": "one for all free music in china",
   "main": "index.js",
@@ -14,14 +14,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/MapleSugarCake/listen1_chrome_extension.git"
+    "url": "https://github.com/MapleSugarCake/listen1_maple_extension.git"
   },
   "author": "",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/MapleSugarCake/listen1_chrome_extension/issues"
+    "url": "https://github.com/MapleSugarCake/listen1_maple_extension/issues"
   },
-  "homepage": "https://github.com/MapleSugarCake/listen1_chrome_extension",
+  "homepage": "https://github.com/MapleSugarCake/listen1_maple_extension",
   "engines": {
     "node": ">=24.21.0 <25",
     "npm": ">=12 <13"

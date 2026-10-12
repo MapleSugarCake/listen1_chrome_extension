@@ -24,6 +24,9 @@ function github() {
     );
   const OAUTH_URL = 'https://github.com/login/oauth';
   const API_URL = 'https://api.github.com';
+  const repositoryUrl = isElectron()
+    ? 'https://github.com/MapleSugarCake/listen1_maple_desktop'
+    : 'https://github.com/MapleSugarCake/listen1_maple_extension';
 
   const client_id = 'e099a4803bb1e2e773a3';
   const client_secret = '81fbfc45c65af8c0fbf2b4dae6f23f22e656cfb8';
@@ -208,7 +211,7 @@ function github() {
           },
           0
         );
-        const summary = `本歌单由[Listen1](https://listen1.github.io/listen1/)创建, 歌曲数：${songsCount}，歌单数：${playlistIds.length}，点击查看更多`;
+        const summary = `本歌单由[Listen1](${repositoryUrl})创建, 歌曲数：${songsCount}，歌单数：${playlistIds.length}，点击查看更多`;
         result['listen1_aha_playlist.md'] = {
           content: summary,
         };
@@ -290,7 +293,7 @@ function github() {
           method,
           url,
           data: {
-            description: `updated by Listen1(https://listen1.github.io/listen1/) at ${new Date().toLocaleString()}`,
+            description: `updated by Listen1(${repositoryUrl}) at ${new Date().toLocaleString()}`,
             public: isPublic,
             files,
           },
