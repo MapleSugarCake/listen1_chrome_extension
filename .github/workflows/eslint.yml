@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [master]
 
+env:
+  npm_config_registry: https://registry.npmjs.org
+  npm_config_replace_registry_host: registry.npmmirror.com
+
 jobs:
   build:
     runs-on: ubuntu-latest

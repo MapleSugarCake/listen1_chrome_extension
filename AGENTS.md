@@ -134,7 +134,7 @@ npm run lint
 npm run vendor:check
 ```
 
-`npm test` 运行 Node 行为测试，桌面集成与在线播放测试在外层仓库；本子模块没有 start 脚本。`format:check` 的全仓 glob 可能报告既有格式差异，不包含 HTML；只格式化改动文件，不运行全仓 format。Husky 9 通过 `LISTEN1_INSTALL_HOOKS=1 npm run prepare` 显式安装，默认安装不改父仓库 Git hook。CI 安装后运行 lint、行为测试和 vendor 校验，Node 24.21.0；本轮未触发远程 CI。
+`npm test` 运行 Node 行为测试，桌面集成与在线播放测试在外层仓库；本子模块没有 start 脚本。`format:check` 的全仓 glob 可能报告既有格式差异，不包含 HTML；只格式化改动文件，不运行全仓 format。Husky 9 通过 `LISTEN1_INSTALL_HOOKS=1 npm run prepare` 显式安装，默认安装不改父仓库 Git hook。独立 CI 的 `.github/workflows/eslint.yml` 使用官方 npm registry，并以 `npm_config_replace_registry_host=registry.npmmirror.com` 映射锁文件的镜像下载地址，保留版本、integrity 和 npm 12 默认远程 URL 限制；桌面工作流的环境配置不会传入本仓库的独立运行。CI 安装后运行 lint、行为测试和 vendor 校验，Node 24.21.0；修改工作流后须由包含修复的新提交触发远程验证。
 
 按影响测试完整链路：provider 搜索/分页/空结果/错误/地址解析、实际音频输出、播放控制、队列清空和乱序回调、换源失败、歌词、旧数据、四主题和语言恢复。静态通过、单模块正常或搜索结果不能替代播放验收。扩展在独立副本中测试，Firefox manifest 替换不要覆盖主工作区。应用包版本为 2.35.1，扩展 manifest/旧 README 版本差异保留；更新包版本不代表已打包或正式发布。
 
